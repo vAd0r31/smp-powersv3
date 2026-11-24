@@ -299,7 +299,8 @@ final class Abilities {
 
     static void strike(ServerPlayer owner, LivingEntity target, float damage) {
         ServerLevel level = Compat.level(target);
-        var bolt = EntityType.LIGHTNING_BOLT.create(level, EntitySpawnReason.TRIGGERED);
+        EntityType<?> boltType = EntityType.byString("lightning_bolt").orElse(null);
+net.minecraft.world.entity.Entity bolt = boltType == null ? null : boltType.create(level, EntitySpawnReason.TRIGGERED);
         if (bolt != null) {
             bolt.setPos(target.getX(), target.getY(), target.getZ());
             level.addFreshEntity(bolt);
