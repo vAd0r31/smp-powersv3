@@ -1,0 +1,8 @@
+NO INSTALL NEEDED
+1. Go to github.com, make a free account, click New repository (name: smp-powers), Create.
+2. Click "uploading an existing file". Drag in EVERYTHING from this folder
+   (including the hidden .github folder, so unzip first and drag the folders, not the zip).
+3. Click Commit. Click the Actions tab. Wait ~3 minutes for a green check.
+4. Click the run, scroll to Artifacts, download smp-powers-jar.
+5. Unzip it. Put smp-powers-1.0.0.jar (NOT -sources) + Fabric API in Apex mods. Restart.
+If the run is RED: open it, copy the red error, send it to me and I fix it.
