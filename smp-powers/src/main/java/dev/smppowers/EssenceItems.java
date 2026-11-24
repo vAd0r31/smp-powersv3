@@ -48,7 +48,7 @@ final class EssenceItems {
     static String kind(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return null;
         CustomData data = stack.get(DataComponents.CUSTOM_DATA);
-        if (data == null || !data.contains(TAG)) return null;
+        if (data == null) return null;
         String v = data.copyTag().getStringOr(TAG, "");
         return v.isEmpty() ? null : v;
     }
