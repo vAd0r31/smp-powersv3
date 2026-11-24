@@ -299,8 +299,17 @@ final class Abilities {
 
     static void strike(ServerPlayer owner, LivingEntity target, float damage) {
         ServerLevel level = Compat.level(target);
-        EntityType<?> boltType = EntityType.byString("lightning_bolt").orElse(null);
-net.minecraft.world.entity.Entity bolt = boltType == null ? null : boltType.create(level, EntitySpawnReason.TRIGGERED);
+        net.minecraft.world.entity.Entity bolt = null;
+try {
+    for (java.lang.reflect.Field f : EntityType.class.getFields()) {
+        if (f.getName().contains("LIGHTNING")) {
+            EntityType<?> boltType = (EntityType<?>) f.get(null);
+            bolt = boltType.create(level, EntitySpawnReason.TRIGGERED);
+            break;
+        }
+    }
+} catch (Exception ignored) {
+}
         if (bolt != null) {
             bolt.setPos(target.getX(), target.getY(), target.getZ());
             level.addFreshEntity(bolt);
