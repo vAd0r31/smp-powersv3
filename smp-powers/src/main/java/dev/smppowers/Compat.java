@@ -56,7 +56,7 @@ final class Compat {
     }
 
     static void actionBar(ServerPlayer p, Component c) {
-        p.displayClientMessage(c, true);
+        p.connection.send(new net.minecraft.network.protocol.game.ClientboundSetActionBarTextPacket(c));
     }
 
     static void msg(ServerPlayer p, Component c) {
