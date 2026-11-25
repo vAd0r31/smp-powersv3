@@ -32,6 +32,11 @@ public enum Power {
         this.ultimateName = ultimateName;
     }
 
+    /** Private-use character the resource pack draws as this power's icon. */
+    public char icon() {
+        return (char) (0xE000 + ordinal());
+    }
+
     public String id() {
         return name().toLowerCase(Locale.ROOT);
     }

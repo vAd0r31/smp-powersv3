@@ -67,6 +67,27 @@ final class Compat {
         l.sendParticles(type, pos.x, pos.y, pos.z, count, spread, spread / 2.0, spread, 0.02);
     }
 
+    /** Finds the lightning bolt entity type by name so a rename can't break the build. */
+    @SuppressWarnings("rawtypes")
+    static net.minecraft.world.entity.EntityType lightningType() {
+        try {
+            for (java.lang.reflect.Field f : net.minecraft.world.entity.EntityType.class.getFields()) {
+                if (java.lang.reflect.Modifier.isStatic(f.getModifiers()) && f.getName().contains("LIGHTNING")) {
+                    return (net.minecraft.world.entity.EntityType) f.get(null);
+                }
+            }
+        } catch (Exception ignored) {
+            // fall through
+        }
+        return null;
+    }
+
+    /** Points an item at a custom model from the resource pack (assets/smppowers/items/<name>.json). */
+    static void itemModel(net.minecraft.world.item.ItemStack stack, String name) {
+        stack.set(net.minecraft.core.component.DataComponents.ITEM_MODEL,
+                net.minecraft.resources.Identifier.fromNamespaceAndPath("smppowers", name));
+    }
+
     static boolean isEnd(Level l) {
         return l.dimension() == Level.END;
     }

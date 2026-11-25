@@ -45,6 +45,8 @@ public class Config {
 
     // Display
     public boolean actionBarHud = true;
+    public boolean effects = true;              // particles, flying rocks, sounds for abilities
+    public boolean hudIcons = true;             // needs the resource pack, turn off if you don't use it
 
     public Map<String, Integer> powerWeights = new LinkedHashMap<>();
     public Map<String, PowerSettings> powers = new LinkedHashMap<>();

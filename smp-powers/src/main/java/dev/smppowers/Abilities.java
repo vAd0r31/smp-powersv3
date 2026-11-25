@@ -138,6 +138,7 @@ final class Abilities {
                     return false;
                 }
                 strike(p, target, PowerEngine.damageFor(s.abilityDamage, lvl));
+                Fx.arc(p, target);
             }
             case SHADE -> {
                 int ticks = secs(s.abilityDuration, lvl);
@@ -160,6 +161,7 @@ final class Abilities {
                     return false;
                 }
                 Compat.effect(target, MobEffects.GLOWING, secs(s.abilityDuration, lvl), 0);
+                Fx.mark(p, target);
             }
             case DRAGON -> {
                 Vec3 pos = p.position().add(look.x * 3, 0, look.z * 3);
@@ -168,6 +170,7 @@ final class Abilities {
             }
         }
 
+        Fx.ability(p, power);
         d.abilityReadyAt = System.currentTimeMillis() + (long) (PowerEngine.cooldownSeconds(power, lvl) * 1000);
         return true;
     }
@@ -235,6 +238,7 @@ final class Abilities {
             }
         }
 
+        Fx.ultimate(p, power);
         PowerEngine.ultimates.put(id, new PowerEngine.Active(power, t + duration));
         d.charge = 0;
         Compat.particles(level, ParticleTypes.END_ROD, p.position().add(0, 1, 0), 60, 0.8);
@@ -254,6 +258,7 @@ final class Abilities {
         double speed = PowerEngine.config.settings(Power.TIDE).ultimateStrength;
         Compat.push(p, p.getLookAngle().scale(speed));
         Compat.particles(Compat.level(p), ParticleTypes.BUBBLE, p.position().add(0, 1, 0), 30, 0.6);
+        Fx.ability(p, Power.TIDE);
         return true;
     }
 
@@ -263,12 +268,14 @@ final class Abilities {
         Compat.push(p, new Vec3(0, upSpeed, 0));
         PowerEngine.slams.put(p.getUUID(), new int[] { PowerEngine.now(), meteor ? 1 : 0, 0 });
         PowerEngine.noFall.put(p.getUUID(), PowerEngine.now() + 400);
+        Fx.slamStart(p, meteor);
     }
 
     /** Called every tick for a player in a slam. slam = {startTick, isMeteor, phase}. */
     static void slamTick(ServerPlayer p, Power power, int[] slam, int t) {
         int age = t - slam[0];
         if (slam[2] == 0) {
+            Fx.slamRise(p, slam[1] == 1);
             // rising: after a short time (or once we start falling) smash down
             if (age >= 8 || p.getDeltaMovement().y < 0) {
                 slam[2] = 1;
@@ -276,6 +283,7 @@ final class Abilities {
             }
         } else {
             Compat.push(p, new Vec3(0, Math.min(p.getDeltaMovement().y, -1.2), 0));
+            Fx.slamFall(p, slam[1] == 1, age);
             if (p.onGround() || age > 120) {
                 PowerSettings s = PowerEngine.config.settings(Power.SMASH);
                 boolean meteor = slam[1] == 1;
@@ -289,6 +297,7 @@ final class Abilities {
                     Compat.push(e, new Vec3(away.x * 0.9, 0.6, away.z * 0.9));
                 }
                 Compat.particles(level, ParticleTypes.EXPLOSION, p.position(), meteor ? 20 : 8, radius * 0.4);
+                Fx.slamImpact(p, meteor, radius);
                 PowerEngine.slams.remove(p.getUUID());
                 PowerEngine.noFall.put(p.getUUID(), t + 40);
             }
@@ -300,16 +309,16 @@ final class Abilities {
     static void strike(ServerPlayer owner, LivingEntity target, float damage) {
         ServerLevel level = Compat.level(target);
         net.minecraft.world.entity.Entity bolt = null;
-try {
-    for (java.lang.reflect.Field f : EntityType.class.getFields()) {
-        if (f.getName().contains("LIGHTNING")) {
-            EntityType<?> boltType = (EntityType<?>) f.get(null);
-            bolt = boltType.create(level, EntitySpawnReason.TRIGGERED);
-            break;
+        try {
+            for (java.lang.reflect.Field f : EntityType.class.getFields()) {
+                if (f.getName().contains("LIGHTNING")) {
+                    EntityType<?> boltType = (EntityType<?>) f.get(null);
+                    bolt = boltType.create(level, EntitySpawnReason.TRIGGERED);
+                    break;
+                }
+            }
+        } catch (Exception ignored) {
         }
-    }
-} catch (Exception ignored) {
-}
         if (bolt != null) {
             bolt.setPos(target.getX(), target.getY(), target.getZ());
             level.addFreshEntity(bolt);

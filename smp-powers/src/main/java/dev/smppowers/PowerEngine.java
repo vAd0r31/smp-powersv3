@@ -71,6 +71,7 @@ final class PowerEngine {
     }
 
     static void stop() {
+        Fx.cleanup();
         store.save();
         ultimates.clear();
         zones.clear();
@@ -220,6 +221,19 @@ final class PowerEngine {
         }
 
         if (t % 10 == 0) zonePulse(t);
+        Fx.tick(s, t);
+        if (t == 100) Fx.cleanup();
+        if (config.effects && t % 2 == 0) {
+            for (Zone z : zones) {
+                ServerPlayer o = s.getPlayerList().getPlayer(z.owner);
+                if (o == null) continue;
+                if (z.follow) {
+                    z.pos = o.position();
+                    z.level = Compat.level(o);
+                }
+                Fx.zoneAmbient(z, t);
+            }
+        }
 
         // forget expired timers
         venomArmed.values().removeIf(v -> v < t);
@@ -263,6 +277,7 @@ final class PowerEngine {
     private static void ultimateTick(ServerPlayer p, Active act, int t) {
         PowerSettings s = config.settings(act.power);
         int level = data(p).level;
+        if (t % 2 == 0) Fx.aura(p, act.power, t);
         switch (act.power) {
             case GALE -> {
                 Compat.effect(p, MobEffects.SLOW_FALLING, 40, 0);
@@ -306,7 +321,8 @@ final class PowerEngine {
         else if (d.level < config.ultimateMinLevel) ult = "needs Lv" + config.ultimateMinLevel;
         else if (d.charge >= 100) ult = "READY";
         else ult = d.charge + "%";
-        Compat.actionBar(p, Component.literal(power.display + " Lv" + d.level
+        String icon = config.hudIcons ? power.icon() + " " : "";
+        Compat.actionBar(p, Component.literal(icon + power.display + " Lv" + d.level
                 + "  |  Ability: " + ability + "  |  Ultimate: " + ult).withStyle(ChatFormatting.WHITE));
     }
 
@@ -405,9 +421,11 @@ final class PowerEngine {
         if (power == Power.VITAL && siphon.containsKey(id)) {
             float heal = (float) (taken * config.settings(Power.VITAL).abilityStrength);
             attacker.heal(Math.max(1f, heal));
+            Fx.siphonBeam(attacker, entity);
         }
         if (power == Power.VENOM && venomArmed.containsKey(id)) {
             venomArmed.remove(id);
+            Fx.venomHit(entity);
             int secs = (int) Math.round(config.settings(Power.VENOM).abilityDuration * durationScale(level));
             Compat.effect(entity, MobEffects.POISON, secs * 20, 1);
             Compat.effect(entity, MobEffects.WEAKNESS, secs * 20, 0);

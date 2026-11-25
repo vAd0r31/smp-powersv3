@@ -24,22 +24,23 @@ final class EssenceItems {
     static final String REROLL = "reroll";
 
     static ItemStack essence(int count) {
-        return make(Items.ECHO_SHARD, ESSENCE, "Imperium Essence", ChatFormatting.LIGHT_PURPLE,
+        return make(Items.ECHO_SHARD, ESSENCE, "Imperium Essence", ChatFormatting.LIGHT_PURPLE, "essence",
                 "Right-click to gain a power level.", count);
     }
 
     static ItemStack rerollToken() {
-        return make(Items.NAUTILUS_SHELL, REROLL, "Reroll Token", ChatFormatting.AQUA,
+        return make(Items.NAUTILUS_SHELL, REROLL, "Reroll Token", ChatFormatting.AQUA, "reroll_token",
                 "Right-click to get a new random power.", 1);
     }
 
-    private static ItemStack make(Item item, String kind, String name, ChatFormatting color, String lore, int count) {
+    private static ItemStack make(Item item, String kind, String name, ChatFormatting color, String model, String lore, int count) {
         ItemStack stack = new ItemStack(item, count);
         CompoundTag tag = new CompoundTag();
         tag.putString(TAG, kind);
         stack.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
         stack.set(DataComponents.CUSTOM_NAME, Component.literal(name).withStyle(color, ChatFormatting.BOLD));
         stack.set(DataComponents.LORE, new ItemLore(List.of(Component.literal(lore).withStyle(ChatFormatting.GRAY))));
+        Compat.itemModel(stack, model);
         stack.set(DataComponents.ENCHANTMENT_GLINT_OVERRIDE, true);
         return stack;
     }
