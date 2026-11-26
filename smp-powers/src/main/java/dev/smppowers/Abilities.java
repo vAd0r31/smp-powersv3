@@ -308,6 +308,10 @@ final class Abilities {
 
     static void strike(ServerPlayer owner, LivingEntity target, float damage) {
         ServerLevel level = Compat.level(target);
+        // Hit first, then spawn the bolt. The bolt's own damage used to land first and start the
+        // invulnerability window, which made our hit count for almost nothing.
+        target.invulnerableTime = 0;
+        Compat.hurt(target, owner, damage);
         net.minecraft.world.entity.Entity bolt = null;
         try {
             for (java.lang.reflect.Field f : EntityType.class.getFields()) {
@@ -323,7 +327,6 @@ final class Abilities {
             bolt.setPos(target.getX(), target.getY(), target.getZ());
             level.addFreshEntity(bolt);
         }
-        Compat.hurt(target, owner, damage);
     }
 
     static void stormPulse(ServerPlayer p, PowerSettings s, int lvl) {
