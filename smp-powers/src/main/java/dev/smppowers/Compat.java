@@ -30,7 +30,44 @@ final class Compat {
     /** Damage that counts as a player hit (so kills credit the player). */
     static void hurt(LivingEntity target, ServerPlayer source, float amount) {
         ServerLevel l = level(target);
-        target.hurtServer(l, l.damageSources().playerAttack(source), amount);
+        // Ability damage must land in full: clear the "just got hurt" timer (otherwise a hit that
+        // comes right after another one is mostly ignored) and use magic damage credited to the
+        // player, which armor does not shrink. Falls back to a normal player hit if it can't be found.
+        target.invulnerableTime = 0;
+        net.minecraft.world.damagesource.DamageSource ds = null;
+        try {
+            if (!triedMagic) {
+                triedMagic = true;
+                for (java.lang.reflect.Method m : l.damageSources().getClass().getMethods()) {
+                    if (m.getName().equals("indirectMagic") && m.getParameterCount() == 2) {
+                        indirectMagic = m;
+                        break;
+                    }
+                }
+            }
+            if (indirectMagic != null) ds = (net.minecraft.world.damagesource.DamageSource) indirectMagic.invoke(l.damageSources(), source, source);
+        } catch (Throwable ignored) {
+            // use the fallback below
+        }
+        if (ds == null) ds = l.damageSources().playerAttack(source);
+        target.hurtServer(l, ds, amount);
+    }
+
+    private static boolean triedMagic = false;
+    private static java.lang.reflect.Method indirectMagic = null;
+
+    /** Applies a potion effect looked up by field name, trying each name in order (survives renames). */
+    @SuppressWarnings("unchecked")
+    static void effectNamed(LivingEntity e, int ticks, int amplifier, String... names) {
+        for (String n : names) {
+            try {
+                Object o = net.minecraft.world.effect.MobEffects.class.getField(n).get(null);
+                effect(e, (Holder<MobEffect>) o, ticks, amplifier);
+                return;
+            } catch (Exception ignored) {
+                // try the next name
+            }
+        }
     }
 
     static void hurtMagic(LivingEntity target, float amount) {

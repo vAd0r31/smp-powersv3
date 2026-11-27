@@ -54,6 +54,18 @@ final class PowerEngine {
     static final Map<UUID, int[]> slams = new HashMap<>();          // {startTick, isMeteor(0/1)}
     static final Map<UUID, Integer> tridentCooldown = new HashMap<>();
     static final Map<String, Long> killPairs = new HashMap<>();
+    static final Map<UUID, Mark> reaperMarks = new HashMap<>();     // marked target -> who marked it
+    static final Map<UUID, UUID> riftLinks = new HashMap<>();       // Rift owner -> linked target
+
+    /** Reaper's mark on one target. */
+    static final class Mark {
+        final UUID owner;
+        final int end;
+        Mark(UUID owner, int end) {
+            this.owner = owner;
+            this.end = end;
+        }
+    }
     static final Map<UUID, Vec3> lastPos = new HashMap<>();
     static final Set<UUID> stillPlayers = new HashSet<>();
     private static boolean bonusHit = false;
@@ -76,6 +88,8 @@ final class PowerEngine {
         ultimates.clear();
         zones.clear();
         venomArmed.clear();
+        reaperMarks.clear();
+        riftLinks.clear();
         siphon.clear();
         noFall.clear();
         slams.clear();
@@ -178,6 +192,7 @@ final class PowerEngine {
         UUID id = p.getUUID();
         ultimates.remove(id);
         venomArmed.remove(id);
+        riftLinks.remove(id);
         siphon.remove(id);
         noFall.remove(id);
         slams.remove(id);
@@ -208,6 +223,7 @@ final class PowerEngine {
             if (act != null) {
                 if (t >= act.endTick) {
                     ultimates.remove(id);
+                    riftLinks.remove(id);
                     tell(p, power.ultimateName + " ended.", ChatFormatting.GRAY);
                 } else {
                     ultimateTick(p, act, t);
@@ -239,6 +255,7 @@ final class PowerEngine {
         venomArmed.values().removeIf(v -> v < t);
         siphon.values().removeIf(v -> v < t);
         noFall.values().removeIf(v -> v < t);
+        reaperMarks.values().removeIf(m -> m.end < t);
         if (t % 600 == 0) {
             long cutoff = System.currentTimeMillis() - config.antiFarmMinutes * 60_000L;
             killPairs.values().removeIf(v -> v < cutoff);
@@ -307,6 +324,15 @@ final class PowerEngine {
             case STORM -> {
                 if (t % 20 == 0) Abilities.stormPulse(p, s, level);
             }
+            case REAPER -> {
+                if (t % 10 == 0) Abilities.reaperSweep(p, s);
+            }
+            case ECHO -> {
+                if (t % 20 == 0) Abilities.echoPulse(p, s, level);
+            }
+            case RIFT -> {
+                if (t % 60 == 0) Abilities.riftSwap(p);
+            }
             default -> { }
         }
     }
@@ -350,6 +376,7 @@ final class PowerEngine {
                 case TOXIC -> ParticleTypes.WITCH;
                 case FROST -> ParticleTypes.SNOWFLAKE;
                 case DRAGON -> ParticleTypes.PORTAL;
+                case GRAVITY -> ParticleTypes.PORTAL;
             };
             Compat.particles(z.level, particle, z.pos.add(0, 0.5, 0), 25, z.radius * 0.5);
 
@@ -369,6 +396,16 @@ final class PowerEngine {
                         if (z.damage > 0) Compat.hurt(e, owner, (float) Math.min(z.damage, config.maxAbilityDamage));
                     }
                     case DRAGON -> {
+                        if (z.damage > 0) Compat.hurt(e, owner, (float) Math.min(z.damage, config.maxAbilityDamage));
+                    }
+                    case GRAVITY -> {
+                        Vec3 to = z.pos.add(0, 1, 0).subtract(e.position());
+                        if (to.lengthSqr() > 0.25) {
+                            Vec3 dir = to.normalize();
+                            double k = config.settings(Power.GRAVITY).ultimateStrength;
+                            Compat.push(e, new Vec3(dir.x * k, Math.max(-0.1, dir.y * k * 0.5), dir.z * k));
+                        }
+                        Compat.effect(e, MobEffects.SLOWNESS, 20, 1);
                         if (z.damage > 0) Compat.hurt(e, owner, (float) Math.min(z.damage, config.maxAbilityDamage));
                     }
                 }
@@ -397,6 +434,12 @@ final class PowerEngine {
             }
             case STORM -> {
                 if (source.is(DamageTypeTags.IS_LIGHTNING)) return false;
+            }
+            case GRAVITY -> {
+                if (source.is(DamageTypeTags.IS_FALL)) return false;
+            }
+            case SAND -> {
+                if (source.is(DamageTypes.IN_WALL)) return false;
             }
             default -> { }
         }
@@ -436,6 +479,19 @@ final class PowerEngine {
             try {
                 float extra = Math.min(taken * 0.25f, (float) config.maxAbilityDamage);
                 Compat.hurt(entity, attacker, extra);
+            } finally {
+                bonusHit = false;
+            }
+        }
+        // Reaper: hits on the marked target do extra damage, double once it is under half health.
+        Mark mk = reaperMarks.get(entity.getUUID());
+        if (power == Power.REAPER && mk != null && mk.owner.equals(id) && mk.end >= t && !bonusHit) {
+            float frac = (float) config.settings(Power.REAPER).abilityStrength;
+            if (entity.getHealth() < entity.getMaxHealth() * 0.5f) frac *= 2f;
+            bonusHit = true;
+            try {
+                float extra = Math.min(taken * frac, (float) config.maxAbilityDamage);
+                if (extra > 0) Compat.hurt(entity, attacker, extra);
             } finally {
                 bonusHit = false;
             }

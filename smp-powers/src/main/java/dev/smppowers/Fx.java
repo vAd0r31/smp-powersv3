@@ -44,7 +44,7 @@ final class Fx {
 
     // ================= low level =================
 
-    private static String f(double v) {
+    static String f(double v) {
         return String.format(Locale.ROOT, "%.3f", v);
     }
 
@@ -444,7 +444,138 @@ final class Fx {
                     p(l, "PORTAL", v, 8, sp, sp, sp, 0.3);
                 }
             }
+            case SAND -> {
+                double r = s.abilityRadius;
+                sound(l, pos, "minecraft:block.sand.break", 1.6f, 0.6f);
+                sound(l, pos, "minecraft:entity.wind_charge.wind_burst", 1.0f, 0.6f);
+                expandingRing(l, "CLOUD", pos.add(0, 0.3, 0), r, 6, 44);
+                expandingRing(l, "ASH", pos.add(0, 0.8, 0), r * 0.8, 6, 36);
+                spiral(l, "ASH", pos, r * 0.5, 3, 3, 30, 0);
+                debris(l, pos, "minecraft:sand", 16, r, 2.6, 0.35, false);
+                debris(l, pos, "minecraft:sandstone", 8, r, 1.8, 0.3, false);
+            }
+            case REAPER -> {
+                sound(l, pos, "minecraft:entity.wither.shoot", 1.2f, 0.6f);
+                p(l, "SCULK_SOUL", chest, 24, 0.5, 0.9, 0.5, 0.03);
+                spiral(l, "SOUL_FIRE_FLAME", pos, 0.8, 2.4, 3, 20, 0);
+                expandingRing(l, "SOUL", pos.add(0, 0.2, 0), 2.5, 5, 20);
+            }
+            case ECHO -> {
+                double r = s.abilityRadius;
+                sound(l, pos, "minecraft:entity.warden.sonic_boom", 1.4f, 1.3f);
+                p(l, "SONIC_BOOM", chest, 1, 0, 0, 0, 0);
+                expandingRing(l, "SONIC_BOOM", pos.add(0, 1, 0), r, 5, 8);
+                expandingRing(l, "SCULK_SOUL", pos.add(0, 0.3, 0), r, 7, 40);
+                expandingRing(l, "ELECTRIC_SPARK", pos.add(0, 1.2, 0), r * 0.7, 6, 24);
+            }
+            case GRAVITY -> {
+                double r = s.abilityRadius;
+                sound(l, pos, "minecraft:entity.enderman.teleport", 1.3f, 0.5f);
+                sound(l, pos, "minecraft:block.respawn_anchor.charge", 1.2f, 0.8f);
+                for (int k = 0; k < 5; k++) {
+                    final double rr = r * (1.0 - k * 0.18);
+                    later(k * 2, () -> ring(l, "REVERSE_PORTAL", pos.add(0, 0.5, 0), rr, 40));
+                }
+                p(l, "REVERSE_PORTAL", chest, 40, 0.4, 0.6, 0.4, 0.2);
+                debris(l, pos, "minecraft:obsidian", 8, r * 0.6, 1.5, 0.3, false);
+            }
+            case RIFT -> sound(l, pos, "minecraft:entity.enderman.teleport", 1.0f, 1.6f);
+            case ILLUSION -> {
+                sound(l, pos, "minecraft:entity.illusioner.cast_spell", 1.4f, 1.0f);
+                p(l, "WITCH", chest, 30, 0.5, 0.9, 0.5, 0.05);
+                spiral(l, "ENCHANT", pos, 0.8, 2.2, 2, 20, 0);
+            }
+            default -> { }
         }
+    }
+
+    // ---- Illusion: stick-figure decoys made of particles ----
+
+    private static void figure(ServerLevel l, Vec3 b, String n) {
+        p(l, n, b.add(0, 1.75, 0), 5, 0.1, 0.1, 0.1, 0);
+        line(l, n, b.add(0, 0.8, 0), b.add(0, 1.5, 0), 6);
+        line(l, n, b.add(-0.45, 1.25, 0), b.add(0.45, 1.25, 0), 5);
+        line(l, n, b.add(0, 0.8, 0), b.add(-0.2, 0, 0), 5);
+        line(l, n, b.add(0, 0.8, 0), b.add(0.2, 0, 0), 5);
+    }
+
+    /** Leaves 3 glowing copies where the player was standing. */
+    static void decoys(ServerPlayer p) {
+        if (!on()) return;
+        ServerLevel l = Compat.level(p);
+        Vec3 c = p.position();
+        Vec3[] spots = { c, c.add(2, 0, 0.5), c.add(-1.5, 0, 1.5), c.add(0.5, 0, -2) };
+        for (int k = 0; k < 16; k++) {
+            later(k * 2, () -> {
+                for (Vec3 s : spots) figure(l, s, "END_ROD");
+            });
+        }
+        p(l, "POOF", c.add(0, 1, 0), 20, 0.4, 0.8, 0.4, 0.05);
+    }
+
+    /** Ultimate Illusion: a decoy flickers in somewhere random near the caster. */
+    private static void flicker(ServerPlayer p) {
+        ServerLevel l = Compat.level(p);
+        double a = R.nextDouble() * Math.PI * 2, d = 2 + R.nextDouble() * 5;
+        Vec3 at = p.position().add(Math.cos(a) * d, 0, Math.sin(a) * d);
+        for (int k = 0; k < 6; k++) later(k * 2, () -> figure(l, at, "ENCHANT"));
+    }
+
+    // ---- Rift ----
+
+    static void blinkFx(ServerLevel l, Vec3 from, Vec3 to) {
+        if (!on()) return;
+        sound(l, from, "minecraft:entity.enderman.teleport", 1.2f, 1.4f);
+        sound(l, to, "minecraft:entity.enderman.teleport", 1.2f, 0.9f);
+        p(l, "REVERSE_PORTAL", from.add(0, 1, 0), 30, 0.3, 0.8, 0.3, 0.2);
+        line(l, "PORTAL", from.add(0, 1, 0), to.add(0, 1, 0), 20);
+        ring(l, "PORTAL", to.add(0, 0.2, 0), 1.0, 16);
+        p(l, "REVERSE_PORTAL", to.add(0, 1, 0), 30, 0.3, 0.8, 0.3, 0.2);
+    }
+
+    static void riftSwapFx(ServerLevel l, Vec3 a, Vec3 b) {
+        if (!on()) return;
+        sound(l, a, "minecraft:entity.enderman.teleport", 1.3f, 0.7f);
+        sound(l, b, "minecraft:entity.enderman.teleport", 1.3f, 0.7f);
+        column(l, "REVERSE_PORTAL", a, 0.4, 2.5, 20);
+        column(l, "REVERSE_PORTAL", b, 0.4, 2.5, 20);
+        line(l, "PORTAL", a.add(0, 1, 0), b.add(0, 1, 0), 30);
+        ring(l, "PORTAL", a.add(0, 0.2, 0), 1.2, 16);
+        ring(l, "PORTAL", b.add(0, 0.2, 0), 1.2, 16);
+    }
+
+    // ---- Sand, Reaper, Echo ----
+
+    /** Burial: a sand tower rises around the target. */
+    static void bury(ServerPlayer owner, LivingEntity target, int ticks) {
+        if (!on()) return;
+        ServerLevel l = Compat.level(target);
+        Vec3 pos = target.position();
+        sound(l, pos, "minecraft:block.sand.break", 1.8f, 0.5f);
+        sound(l, pos, "minecraft:entity.generic.explode", 1.0f, 0.6f);
+        pillar(l, pos, "minecraft:sandstone", 1.5, 2.8, 8, Math.max(20, ticks - 10), false);
+        debris(l, pos, "minecraft:sand", 20, 1.8, 3.2, 0.4, false);
+        column(l, "ASH", pos, 0.9, 3, 30);
+        expandingRing(l, "CLOUD", pos.add(0, 0.2, 0), 3, 6, 30);
+    }
+
+    static void execute(LivingEntity e) {
+        if (!on()) return;
+        ServerLevel l = Compat.level(e);
+        Vec3 pos = e.position();
+        sound(l, pos, "minecraft:entity.wither.break_block", 0.9f, 0.7f);
+        column(l, "SOUL_FIRE_FLAME", pos, 0.4, e.getBbHeight() + 1.5, 20);
+        p(l, "SOUL", pos.add(0, 1, 0), 20, 0.4, 0.8, 0.4, 0.05);
+        p(l, "SCULK_SOUL", pos.add(0, 1, 0), 12, 0.3, 0.6, 0.3, 0.05);
+    }
+
+    static void echoPulse(ServerPlayer p, double radius) {
+        if (!on()) return;
+        ServerLevel l = Compat.level(p);
+        Vec3 pos = p.position();
+        sound(l, pos, "minecraft:entity.warden.sonic_boom", 1.5f, 1.2f);
+        expandingRing(l, "SONIC_BOOM", pos.add(0, 1, 0), radius, 6, 10);
+        expandingRing(l, "SCULK_SOUL", pos.add(0, 0.3, 0), radius, 8, 40);
     }
 
     // ----- target based abilities -----
@@ -589,6 +720,13 @@ final class Fx {
             case SMASH -> "minecraft:magma_block";
             case HUNTER -> "minecraft:green_stained_glass";
             case DRAGON -> "minecraft:purple_stained_glass";
+            case SAND -> "minecraft:sand";
+            case REAPER -> "minecraft:black_stained_glass";
+            case ECHO -> "minecraft:sculk";
+            case MIMIC -> "minecraft:magenta_stained_glass";
+            case GRAVITY -> "minecraft:obsidian";
+            case RIFT -> "minecraft:blue_stained_glass";
+            case ILLUSION -> "minecraft:light_gray_stained_glass";
         };
     }
 
@@ -606,6 +744,13 @@ final class Fx {
             case SMASH -> "FLAME";
             case HUNTER -> "END_ROD";
             case DRAGON -> "PORTAL";
+            case SAND -> "ASH";
+            case REAPER -> "SOUL_FIRE_FLAME";
+            case ECHO -> "SCULK_SOUL";
+            case MIMIC -> "END_ROD";
+            case GRAVITY -> "REVERSE_PORTAL";
+            case RIFT -> "PORTAL";
+            case ILLUSION -> "ENCHANT";
         };
     }
 
@@ -623,6 +768,13 @@ final class Fx {
             case SMASH -> "minecraft:entity.ender_dragon.growl";
             case HUNTER -> "minecraft:block.beacon.activate";
             case DRAGON -> "minecraft:entity.ender_dragon.growl";
+            case SAND -> "minecraft:block.sand.break";
+            case REAPER -> "minecraft:entity.wither.spawn";
+            case ECHO -> "minecraft:entity.warden.sonic_boom";
+            case MIMIC -> "minecraft:block.beacon.activate";
+            case GRAVITY -> "minecraft:entity.enderman.teleport";
+            case RIFT -> "minecraft:entity.enderman.teleport";
+            case ILLUSION -> "minecraft:entity.illusioner.cast_spell";
         };
     }
 
@@ -703,6 +855,23 @@ final class Fx {
                 }
             }
             case DRAGON -> wings(p, t);
+            case REAPER -> {
+                spiral(l, "SOUL_FIRE_FLAME", pos, 0.9, 2.4, 2, 8, ph);
+                p(l, "SCULK_SOUL", chest, 2, 0.5, 0.8, 0.5, 0.01);
+                if (t % 20 == 0) expandingRing(l, "SOUL", pos.add(0, 0.2, 0), 8, 6, 30);
+            }
+            case ECHO -> {
+                spiral(l, "SCULK_SOUL", pos, 1.0, 2.2, 2, 8, ph);
+                ring(l, "ELECTRIC_SPARK", pos.add(0, 0.1, 0), 1.4, 10);
+            }
+            case ILLUSION -> {
+                spiral(l, "ENCHANT", pos, 0.9, 2.4, 2, 10, ph);
+                if (t % 20 == 0) flicker(p);
+            }
+            case RIFT -> {
+                spiral(l, "REVERSE_PORTAL", pos, 0.9, 2.2, 2, 10, ph);
+                ring(l, "PORTAL", pos.add(0, 0.1, 0), 1.3, 12);
+            }
             default -> { }
         }
     }
@@ -791,6 +960,20 @@ final class Fx {
                 }
                 spiral(l, "PORTAL", c, r * 0.6, 3, 2, 20, ph);
                 ring(l, "REVERSE_PORTAL", c.add(0, 0.1, 0), r, 24);
+            }
+            case GRAVITY -> {
+                for (int k = 0; k < 3; k++) {
+                    double a0 = -ph * 1.4 + k * 2.09;
+                    for (int i = 0; i < 8; i++) {
+                        double h = 0.3 + i * 0.35;
+                        double rad = r * 0.9 * (1.0 - i / 9.0);
+                        double a = a0 + i * 0.5;
+                        p(l, "REVERSE_PORTAL", c.x + Math.cos(a) * rad, c.y + h, c.z + Math.sin(a) * rad, 1, 0, 0, 0, 0);
+                    }
+                }
+                ring(l, "PORTAL", c.add(0, 0.1, 0), r, 36);
+                p(l, "SQUID_INK", c.add(0, 1.2, 0), 4, 0.3, 0.3, 0.3, 0.02);
+                if (t % 10 == 0) debris(l, c.add(0, 1.5, 0), "minecraft:obsidian", 2, r * 0.6, 0.6, 0.3, false);
             }
         }
     }

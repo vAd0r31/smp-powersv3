@@ -2,7 +2,7 @@ package dev.smppowers;
 
 import java.util.Locale;
 
-/** The 12 powers. Numbers live in PowerSettings / config.json, this is only names and flags. */
+/** The 19 powers. Numbers live in PowerSettings / config.json, this is only names and flags. */
 public enum Power {
     TIDE("Tide", 0x3FA7FF, true, "Dash", "Tidal Surge"),
     EMBER("Ember", 0xFF7A1A, false, "Fire Burst", "Fire Storm"),
@@ -15,7 +15,14 @@ public enum Power {
     VENOM("Venom", 0x5FD13A, false, "Venom Strike", "Toxic Cloud"),
     SMASH("Smash", 0xC98A3C, true, "Ground Slam", "Meteor"),
     HUNTER("Hunter", 0x2FA84F, false, "Mark", "Hunter's Eye"),
-    DRAGON("Dragon", 0xA64DFF, true, "Dragon Breath", "Wings");
+    DRAGON("Dragon", 0xA64DFF, true, "Dragon Breath", "Wings"),
+    SAND("Sand", 0xE3C27A, false, "Sandstorm", "Burial"),
+    REAPER("Reaper", 0xC0243C, false, "Reap Mark", "Execution"),
+    ECHO("Echo", 0x2FD6C6, false, "Sonic Wave", "Resonance"),
+    MIMIC("Mimic", 0xD86AD8, false, "Copycat", "Mirror"),
+    GRAVITY("Gravity", 0x7058D8, false, "Pull", "Singularity"),
+    RIFT("Rift", 0x4D7CFF, false, "Blink", "Linked Rift"),
+    ILLUSION("Illusion", 0xB8A0FF, false, "Mirage", "Mass Illusion");
 
     public final String display;
     public final int color;

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -16,7 +17,7 @@ import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
-/** The 12 abilities and 12 ultimates. Numbers come from config.json. */
+/** The 19 abilities and 19 ultimates. Numbers come from config.json. */
 final class Abilities {
     private Abilities() {}
 
@@ -90,14 +91,24 @@ final class Abilities {
             return false;
         }
 
-        PowerSettings s = PowerEngine.config.settings(power);
+        // Mimic casts whatever ability was used near it recently, with that power's numbers.
+        Power eff = power;
+        if (power == Power.MIMIC) {
+            eff = mimicSource(p);
+            if (eff == null) {
+                PowerEngine.tell(p, "Nobody nearby used an ability in the last few seconds.", ChatFormatting.GRAY);
+                return false;
+            }
+        }
+
+        PowerSettings s = PowerEngine.config.settings(eff);
         int lvl = d.level;
         ServerLevel level = Compat.level(p);
         Vec3 look = p.getLookAngle();
         int t = PowerEngine.now();
         UUID id = p.getUUID();
 
-        switch (power) {
+        switch (eff) {
             case TIDE -> {
                 Compat.push(p, look.scale(s.abilityStrength));
                 PowerEngine.noFall.put(id, t + 60);
@@ -148,7 +159,7 @@ final class Abilities {
             case VITAL -> PowerEngine.siphon.put(id, t + secs(s.abilityDuration, lvl));
             case VENOM -> PowerEngine.venomArmed.put(id, t + 20 * 20);
             case SMASH -> {
-                if (blockedInEnd(p, power)) {
+                if (blockedInEnd(p, eff)) {
                     PowerEngine.tell(p, "Ground Slam is off in the End.", ChatFormatting.RED);
                     return false;
                 }
@@ -168,9 +179,61 @@ final class Abilities {
                 PowerEngine.zones.add(new Zone(id, Zone.Kind.DRAGON, level, pos, s.abilityRadius,
                         t + secs(s.abilityDuration, lvl), false, PowerEngine.damageFor(s.abilityDamage, lvl)));
             }
+            case SAND -> {
+                int ticks = secs(s.abilityDuration, lvl);
+                for (LivingEntity e : targetsAround(p, level, p.position(), s.abilityRadius)) {
+                    Compat.effectNamed(e, ticks, 0, "BLINDNESS");
+                    Compat.effect(e, MobEffects.SLOWNESS, ticks, 0);
+                }
+            }
+            case REAPER -> {
+                LivingEntity target = lookTarget(p, s.abilityRadius);
+                if (target == null) {
+                    PowerEngine.tell(p, "No target in your sights.", ChatFormatting.GRAY);
+                    return false;
+                }
+                int ticks = secs(s.abilityDuration, lvl);
+                PowerEngine.reaperMarks.put(target.getUUID(), new PowerEngine.Mark(id, t + ticks));
+                Compat.effect(target, MobEffects.GLOWING, ticks, 0);
+                Fx.mark(p, target);
+            }
+            case ECHO -> {
+                int ticks = secs(s.abilityDuration, lvl);
+                for (LivingEntity e : targetsAround(p, level, p.position(), s.abilityRadius)) {
+                    Compat.hurt(e, p, PowerEngine.damageFor(s.abilityDamage, lvl));
+                    Compat.effect(e, MobEffects.SLOWNESS, 30, 2);
+                    Compat.effect(e, MobEffects.GLOWING, ticks, 0);
+                }
+            }
+            case GRAVITY -> {
+                for (LivingEntity e : targetsAround(p, level, p.position(), s.abilityRadius)) {
+                    Vec3 to = p.position().add(0, 1, 0).subtract(e.position());
+                    Vec3 dir = to.lengthSqr() < 0.01 ? Vec3.ZERO : to.normalize();
+                    Compat.push(e, new Vec3(dir.x * s.abilityStrength, 0.35 + Math.max(0, dir.y) * 0.2, dir.z * s.abilityStrength));
+                }
+            }
+            case RIFT -> {
+                if (!blink(p, level, s.abilityRadius)) {
+                    PowerEngine.tell(p, "No room to blink there.", ChatFormatting.GRAY);
+                    return false;
+                }
+            }
+            case ILLUSION -> {
+                int ticks = secs(s.abilityDuration, lvl);
+                Fx.decoys(p);
+                Compat.effect(p, MobEffects.INVISIBILITY, ticks, 0);
+                Compat.effect(p, MobEffects.SPEED, ticks, 1);
+            }
+            default -> { }
         }
 
-        Fx.ability(p, power);
+        if (power != Power.MIMIC) {
+            lastCastPower = power;
+            lastCastTick = t;
+            lastCastPos = p.position();
+            lastCastOwner = id;
+        }
+        Fx.ability(p, eff);
         d.abilityReadyAt = System.currentTimeMillis() + (long) (PowerEngine.cooldownSeconds(power, lvl) * 1000);
         return true;
     }
@@ -199,19 +262,28 @@ final class Abilities {
             PowerEngine.tell(p, "Your ultimate is already running.", ChatFormatting.GRAY);
             return false;
         }
-        if (blockedInEnd(p, power)) {
-            PowerEngine.tell(p, power.ultimateName + " is disabled in the End.", ChatFormatting.RED);
+        // Mimic's ultimate is the nearest player's ultimate.
+        Power eff = power;
+        if (power == Power.MIMIC) {
+            eff = mimicUltimateSource(p);
+            if (eff == null) {
+                PowerEngine.tell(p, "Nobody close enough to copy.", ChatFormatting.GRAY);
+                return false;
+            }
+        }
+        if (blockedInEnd(p, eff)) {
+            PowerEngine.tell(p, eff.ultimateName + " is disabled in the End.", ChatFormatting.RED);
             return false;
         }
 
-        PowerSettings s = cfg.settings(power);
+        PowerSettings s = cfg.settings(eff);
         int lvl = d.level;
         int t = PowerEngine.now();
         int duration = secs(s.ultimateDuration, lvl);
         ServerLevel level = Compat.level(p);
         UUID id = p.getUUID();
 
-        switch (power) {
+        switch (eff) {
             case TIDE -> {
                 PowerEngine.tell(p, "Riptide surge! Right-click while holding a trident.", ChatFormatting.AQUA);
                 PowerEngine.noFall.put(id, t + duration + 100);
@@ -222,7 +294,7 @@ final class Abilities {
                 Compat.push(p, new Vec3(0, s.ultimateStrength, 0));
                 PowerEngine.noFall.put(id, t + duration + 100);
             }
-            case STONE, SHADE, VITAL, DRAGON, STORM -> { /* handled every tick while active */ }
+            case STONE, SHADE, VITAL, DRAGON, STORM, REAPER, ECHO -> { /* handled every tick while active */ }
             case FROST -> PowerEngine.zones.add(new Zone(id, Zone.Kind.FROST, level, p.position(), s.ultimateRadius,
                     t + duration, true, PowerEngine.damageFor(s.ultimateDamage, lvl)));
             case VENOM -> PowerEngine.zones.add(new Zone(id, Zone.Kind.TOXIC, level, p.position(), s.ultimateRadius,
@@ -236,13 +308,46 @@ final class Abilities {
                     Compat.effect(e, MobEffects.GLOWING, duration, 0);
                 }
             }
+            case SAND -> {
+                LivingEntity target = lookTarget(p, s.ultimateRadius);
+                if (target == null) {
+                    PowerEngine.tell(p, "No target in your sights.", ChatFormatting.GRAY);
+                    return false;
+                }
+                Compat.effect(target, MobEffects.SLOWNESS, duration, 6);
+                Compat.effectNamed(target, duration, 0, "BLINDNESS");
+                Fx.bury(p, target, duration);
+            }
+            case GRAVITY -> {
+                Vec3 aim = p.getLookAngle();
+                Vec3 center = p.position().add(aim.x * 6, 0, aim.z * 6);
+                PowerEngine.zones.add(new Zone(id, Zone.Kind.GRAVITY, level, center, s.ultimateRadius,
+                        t + duration, false, PowerEngine.damageFor(s.ultimateDamage, lvl)));
+            }
+            case RIFT -> {
+                LivingEntity target = lookTarget(p, s.ultimateRadius);
+                if (target == null) {
+                    PowerEngine.tell(p, "No target in your sights.", ChatFormatting.GRAY);
+                    return false;
+                }
+                PowerEngine.riftLinks.put(id, target.getUUID());
+                riftSwap(p);
+            }
+            case ILLUSION -> {
+                for (LivingEntity e : targetsAround(p, level, p.position(), s.ultimateRadius)) {
+                    Compat.effectNamed(e, duration, 0, "NAUSEA", "CONFUSION");
+                    Compat.effect(e, MobEffects.SLOWNESS, duration, 0);
+                }
+                Compat.effect(p, MobEffects.SPEED, duration, 0);
+            }
+            default -> { }
         }
 
-        Fx.ultimate(p, power);
-        PowerEngine.ultimates.put(id, new PowerEngine.Active(power, t + duration));
+        Fx.ultimate(p, eff);
+        PowerEngine.ultimates.put(id, new PowerEngine.Active(eff, t + duration));
         d.charge = 0;
         Compat.particles(level, ParticleTypes.END_ROD, p.position().add(0, 1, 0), 60, 0.8);
-        PowerEngine.tell(p, power.ultimateName + "!", ChatFormatting.GOLD);
+        PowerEngine.tell(p, (power == eff ? power.ultimateName : "Mirror: " + eff.ultimateName) + "!", ChatFormatting.GOLD);
         return true;
     }
 
@@ -327,6 +432,107 @@ final class Abilities {
             bolt.setPos(target.getX(), target.getY(), target.getZ());
             level.addFreshEntity(bolt);
         }
+    }
+
+    // ---------- Mimic ----------
+
+    static Power lastCastPower;
+    static int lastCastTick;
+    static Vec3 lastCastPos;
+    static UUID lastCastOwner;
+
+    /** Mimic can't copy abilities that only work through the caster's own hits. */
+    private static boolean copyable(Power x) {
+        return x != Power.MIMIC && x != Power.VENOM && x != Power.VITAL && x != Power.REAPER;
+    }
+
+    static Power mimicSource(ServerPlayer p) {
+        if (lastCastPower == null || lastCastPos == null || p.getUUID().equals(lastCastOwner) || !copyable(lastCastPower)) return null;
+        if (PowerEngine.now() - lastCastTick > 300) return null;
+        if (lastCastPos.distanceTo(p.position()) > PowerEngine.config.settings(Power.MIMIC).abilityRadius) return null;
+        return lastCastPower;
+    }
+
+    static Power mimicUltimateSource(ServerPlayer p) {
+        double range = PowerEngine.config.settings(Power.MIMIC).ultimateRadius;
+        ServerPlayer best = null;
+        double bestDist = Double.MAX_VALUE;
+        for (ServerPlayer o : PowerEngine.server.getPlayerList().getPlayers()) {
+            if (o == p || !o.isAlive() || o.level() != p.level()) continue;
+            Power op = PowerEngine.powerOf(o);
+            if (op == null || op == Power.MIMIC) continue;
+            double dist = o.position().distanceTo(p.position());
+            if (dist <= range && dist < bestDist) {
+                bestDist = dist;
+                best = o;
+            }
+        }
+        return best == null ? null : PowerEngine.powerOf(best);
+    }
+
+    // ---------- Rift ----------
+
+    private static boolean clear(ServerLevel level, BlockPos pos) {
+        return level.getBlockState(pos).getCollisionShape(level, pos).isEmpty() && level.getFluidState(pos).isEmpty();
+    }
+
+    private static String at(Vec3 v) {
+        return Fx.f(v.x) + " " + Fx.f(v.y) + " " + Fx.f(v.z);
+    }
+
+    /** Teleports up to dist blocks along the look direction, stopping before a wall. */
+    static boolean blink(ServerPlayer p, ServerLevel level, double dist) {
+        Vec3 look = p.getLookAngle();
+        Vec3 best = null;
+        for (double d = 1.0; d <= dist; d += 0.5) {
+            Vec3 feet = p.position().add(look.scale(d));
+            if (!clear(level, BlockPos.containing(feet)) || !clear(level, BlockPos.containing(feet.add(0, 1, 0)))) break;
+            best = feet;
+        }
+        if (best == null) return false;
+        Fx.blinkFx(level, p.position(), best);
+        Fx.cmd("execute in " + Compat.dimensionId(level) + " run tp " + p.getUUID() + " " + at(best));
+        PowerEngine.noFall.put(p.getUUID(), PowerEngine.now() + 60);
+        return true;
+    }
+
+    /** Linked Rift: swap places with the linked target. */
+    static void riftSwap(ServerPlayer p) {
+        UUID linked = PowerEngine.riftLinks.get(p.getUUID());
+        if (linked == null) return;
+        ServerLevel level = Compat.level(p);
+        net.minecraft.world.entity.Entity found = level.getEntity(linked);
+        if (!(found instanceof LivingEntity other) || !other.isAlive()) {
+            PowerEngine.riftLinks.remove(p.getUUID());
+            return;
+        }
+        Vec3 a = p.position();
+        Vec3 b = other.position();
+        Fx.riftSwapFx(level, a, b);
+        String dim = Compat.dimensionId(level);
+        Fx.cmd("execute in " + dim + " run tp " + p.getUUID() + " " + at(b));
+        Fx.cmd("execute in " + dim + " run tp " + other.getUUID() + " " + at(a));
+        PowerEngine.noFall.put(p.getUUID(), PowerEngine.now() + 60);
+    }
+
+    // ---------- Reaper and Echo ultimates ----------
+
+    static void reaperSweep(ServerPlayer p, PowerSettings s) {
+        for (LivingEntity e : targetsAround(p, Compat.level(p), p.position(), s.ultimateRadius)) {
+            if (e.getHealth() <= e.getMaxHealth() * s.ultimateStrength) {
+                Fx.execute(e);
+                Compat.hurt(e, p, e.getHealth() + 1000f);
+            }
+        }
+    }
+
+    static void echoPulse(ServerPlayer p, PowerSettings s, int lvl) {
+        for (LivingEntity e : targetsAround(p, Compat.level(p), p.position(), s.ultimateRadius)) {
+            Compat.hurt(e, p, PowerEngine.damageFor(s.ultimateDamage, lvl));
+            Compat.effect(e, MobEffects.GLOWING, 40, 0);
+            Compat.effect(e, MobEffects.SLOWNESS, 30, 0);
+        }
+        Fx.echoPulse(p, s.ultimateRadius);
     }
 
     static void stormPulse(ServerPlayer p, PowerSettings s, int lvl) {

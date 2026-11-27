@@ -41,6 +41,21 @@ public class PowerSettings {
             case HUNTER -> of(25, 10, 40, 0, 0, 15, 50, 0, 0);
             // Breath: cloud radius 4 for 6s, 2 damage per half second. Ultimate: 15s wings, boost 0.8.
             case DRAGON -> of(30, 6, 4, 2, 0, 15, 0, 0, 0.8);
+            // Sandstorm: blind + slow everyone within 6 for 4s. Ultimate: bury what you look at (range 20) for 5s.
+            case SAND -> of(25, 4, 6, 0, 0, 5, 20, 0, 0);
+            // Mark what you look at (range 25) for 10s, your hits do +40% (double under half health).
+            // Ultimate: 8s, anyone within 12 under 20% health is executed.
+            case REAPER -> of(25, 10, 25, 0, 0.4, 8, 12, 0, 0.2);
+            // Sonic wave: radius 12, 3 damage, slow, glow for 5s. Ultimate: 8s of pulses, radius 10, 2 damage each second.
+            case ECHO -> of(25, 5, 12, 3, 0, 8, 10, 2, 0);
+            // Copy the last ability used within 40 blocks (15s). Ultimate: copy the nearest player's ultimate (within 30).
+            case MIMIC -> of(20, 0, 40, 0, 0, 15, 30, 0, 0);
+            // Pull everyone within 10 toward you (strength 1.2). Ultimate: 10s gravity well, radius 10, 1 damage per half second.
+            case GRAVITY -> of(25, 0, 10, 0, 1.2, 10, 10, 1, 0.5);
+            // Blink: teleport up to 8 blocks where you look. Ultimate: 12s link to what you look at (range 30), swap places every 3s.
+            case RIFT -> of(15, 0, 8, 0, 0, 12, 30, 0, 0);
+            // Mirage: 4s invisible + Speed II, decoys left behind. Ultimate: 8s, everyone within 15 gets nausea.
+            case ILLUSION -> of(25, 4, 0, 0, 0, 8, 15, 0, 0);
         };
     }
 

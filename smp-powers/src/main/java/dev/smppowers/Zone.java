@@ -6,7 +6,7 @@ import net.minecraft.world.phys.Vec3;
 
 /** A lingering area (fire storm, toxic cloud, blizzard, dragon breath) that pulses twice a second. */
 final class Zone {
-    enum Kind { FIRE, TOXIC, FROST, DRAGON }
+    enum Kind { FIRE, TOXIC, FROST, DRAGON, GRAVITY }
 
     final UUID owner;
     final Kind kind;
