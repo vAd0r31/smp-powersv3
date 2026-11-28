@@ -777,6 +777,7 @@ final class Fx {
 
     static void ultimate(ServerPlayer p, Power power) {
         if (!on()) return;
+        if (PowerEngine.config.ultimateTitleCard) ultimateTitle(p, power);
         if (power.secret()) return; // Gojo and Sukuna have their own charge-up effects (see Jujutsu)
         ServerLevel l = Compat.level(p);
         Vec3 pos = p.position();
@@ -1539,6 +1540,7 @@ final class Fx {
         });
         pillar(l, g, blk, ult ? 0.9 : 0.5, ult ? 16 : 7, 3, ult ? 12 : 5, true);
         sound(l, pos, "minecraft:entity.firework_rocket.twinkle", 1.2f, 0.8f);
+        signature(l, g, power, ult, r);
         if (ult) {
             sound(l, pos, "minecraft:block.beacon.power_select", 1.6f, 0.7f);
             for (int k = 1; k <= 6; k++) {
@@ -1561,6 +1563,174 @@ final class Fx {
         spiral(l, g ? "SOUL_FIRE_FLAME" : "SMALL_FLAME", pos, 0.7, 2.0, 1.5, 4, t * 0.3);
         p(l, g ? "END_ROD" : "CRIMSON_SPORE", pos.add(0, 1, 0), 2, 0.4, 0.7, 0.4, 0.01);
         p(l, g ? "ELECTRIC_SPARK" : "FLAME", pos.add(0, 1.8, 0), 1, 0.2, 0.1, 0.2, 0.02);
+    }
+
+    // ================= signature effects: every power gets its own shape =================
+
+    private static void spokes(ServerLevel l, String n, Vec3 c, double r, int count, double phase) {
+        for (int i = 0; i < count; i++) {
+            double a = phase + i * Math.PI * 2 / count;
+            line(l, n, c, c.add(Math.cos(a) * r, 0, Math.sin(a) * r), Math.max(4, (int) (r * 2)));
+        }
+    }
+
+    static void ultimateTitle(ServerPlayer p, Power power) {
+        if (PowerEngine.server == null) return;
+        String color = String.format("#%06X", power.color & 0xFFFFFF);
+        String name = p.getName().getString().replace("\"", "");
+        String top = "{\"text\":\"" + name + "\",\"color\":\"white\"}";
+        String sub = "{\"text\":\"" + power.ultimateName.toUpperCase(Locale.ROOT) + "\",\"color\":\"" + color + "\",\"bold\":true}";
+        for (ServerPlayer o : PowerEngine.server.getPlayerList().getPlayers()) {
+            if (o.level() != p.level() || o.distanceToSqr(p) > 40.0 * 40.0) continue;
+            String u = o.getUUID().toString();
+            cmd("title " + u + " times 3 28 10");
+            cmd("title " + u + " subtitle " + sub);
+            cmd("title " + u + " title " + top);
+        }
+    }
+
+    /** The part of the flair that is different for every power. big = ultimate. */
+    static void signature(ServerLevel l, Vec3 g, Power power, boolean ult, double r) {
+        final Vec3 m = g.add(0, 1, 0);
+        final double big = ult ? 1.6 : 1.0;
+        final int n = ult ? 10 : 5;
+        switch (power) {
+            case TIDE -> {
+                for (int k = 0; k < 8; k++) {
+                    final int kk = k;
+                    later(k, () -> {
+                        spiral(l, "SPLASH", g, 1.0 + kk * 0.12, 5 * big, 3, 24, kk * 0.8);
+                        spiral(l, "BUBBLE_POP", g, 0.6, 5 * big, 3, 12, -kk);
+                    });
+                }
+                expandingRing(l, "FALLING_WATER", g.add(0, 3 * big, 0), r, 6, 40);
+            }
+            case EMBER -> {
+                for (int k = 0; k < 8; k++) {
+                    final int kk = k;
+                    later(k, () -> {
+                        spiral(l, "FLAME", g, 1.2, 6 * big, 4, 30, kk * 0.7);
+                        p(l, "LAVA", m.add(0, kk * 0.5, 0), 2, 0.6, 0.3, 0.6, 0);
+                    });
+                }
+                p(l, "FLAME", m, 60, r * 0.3, 1.5, r * 0.3, 0.2);
+                if (ult) expandingRing(l, "FLAME", g, r * 1.5, 8, 80);
+            }
+            case GALE -> {
+                for (int k = 0; k < 6; k++) {
+                    final int kk = k;
+                    later(kk * 2, () -> disk(l, g.add(0, kk * 0.8, 0), 1.5 + kk * 0.4, 0, kk, "CLOUD", 24));
+                }
+                p(l, "POOF", g.add(0, 0.5, 0), 30, r * 0.3, 0.3, r * 0.3, 0.1);
+            }
+            case STONE -> {
+                spikes(l, g, r, n);
+                spokes(l, "ASH", g, r, 8, 0);
+                p(l, "EXPLOSION", m, 3, r * 0.3, 0.4, r * 0.3, 0);
+            }
+            case FROST -> {
+                spokes(l, "SNOWFLAKE", g.add(0, 0.2, 0), r, 10, 0);
+                spokes(l, "END_ROD", g.add(0, 0.2, 0), r * 0.7, 10, 0.15);
+                spikes(l, g, r, ult ? 8 : 4);
+                p(l, "SNOWFLAKE", m, 80, r * 0.4, 1.2, r * 0.4, 0.05);
+            }
+            case STORM -> {
+                for (int i = 0; i < (ult ? 8 : 3); i++) {
+                    final int ii = i;
+                    later(i, () -> {
+                        double a = R.nextDouble() * Math.PI * 2, rr = r * (0.3 + 0.7 * R.nextDouble());
+                        Vec3 low = new Vec3(g.x + Math.cos(a) * rr, g.y, g.z + Math.sin(a) * rr);
+                        jag(l, "ELECTRIC_SPARK", low.add(0, 14, 0), low, 8, 1.4);
+                        p(l, "FLASH", low, 1, 0, 0, 0, 0);
+                        p(l, "ELECTRIC_SPARK", low, 20, 0.6, 0.3, 0.6, 0.3);
+                        if (ii == 0) sound(l, g, "minecraft:entity.lightning_bolt.thunder", 1.0f, 1.4f);
+                    });
+                }
+            }
+            case SHADE -> {
+                inflow(l, m, r + 3, 30, "SQUID_INK", 0.5);
+                ring(l, "SMOKE", g.add(0, 0.3, 0), r, 40);
+                p(l, "LARGE_SMOKE", m, 30, 0.6, 0.9, 0.6, 0.02);
+            }
+            case VITAL -> {
+                spiral(l, "HEART", g, 1.4, 4 * big, 3, 20, 0);
+                for (int k = 0; k < 8; k++) {
+                    final int kk = k;
+                    later(kk * 2, () -> p(l, "HEART", m.add(0, kk * 0.4, 0), 4, 0.6, 0.2, 0.6, 0));
+                }
+                inflow(l, m, r, 20, "HAPPY_VILLAGER", 0.3);
+            }
+            case VENOM -> {
+                ring(l, "SNEEZE", g.add(0, 0.3, 0), r, 40);
+                spokes(l, "WITCH", g.add(0, 0.2, 0), r * 0.8, 8, 0);
+                p(l, "WITCH", m, 40, r * 0.4, 0.8, r * 0.4, 0.05);
+            }
+            case SMASH -> {
+                spokes(l, "FLAME", g.add(0, 0.2, 0), r, 12, 0);
+                spokes(l, "CRIT", g.add(0, 0.2, 0), r * 0.8, 12, 0.26);
+                p(l, "EXPLOSION_EMITTER", g, 1, 0, 0, 0, 0);
+            }
+            case HUNTER -> {
+                for (int k = 0; k < 7; k++) {
+                    final int kk = k;
+                    later(kk, () -> ring(l, "END_ROD", g.add(0, 0.2, 0), Math.max(0.5, r * (1 - kk / 7.0)), 40));
+                }
+                line(l, "END_ROD", g.add(-r, 0.2, 0), g.add(r, 0.2, 0), (int) (r * 4));
+                line(l, "END_ROD", g.add(0, 0.2, -r), g.add(0, 0.2, r), (int) (r * 4));
+            }
+            case DRAGON -> {
+                for (int k = 0; k < 3; k++) disk(l, m, r * 0.7, Math.PI / 2.5 + k * 0.5, k, "PORTAL", 40);
+                spiral(l, "WITCH", g, 1.6, 5 * big, 3, 30, 0);
+                expandingRing(l, "WITCH", g.add(0, 0.2, 0), r, 6, 50);
+            }
+            case SAND -> {
+                for (int k = 0; k < 8; k++) {
+                    final int kk = k;
+                    later(kk, () -> spiral(l, "ASH", g, 1.0 + kk * 0.3, 4, 3, 20, kk));
+                }
+                p(l, "CLOUD", m, 40, r * 0.4, 0.6, r * 0.4, 0.1);
+            }
+            case REAPER -> {
+                disk(l, m, r * 0.7, 0.9, 0, "SOUL_FIRE_FLAME", 50);
+                disk(l, m, r * 0.5, -0.9, 1, "SOUL_FIRE_FLAME", 36);
+                p(l, "SCULK_SOUL", m, 30, r * 0.4, 1.2, r * 0.4, 0.05);
+            }
+            case ECHO -> {
+                for (int k = 0; k < 6; k++) {
+                    final int kk = k;
+                    later(kk * 2, () -> disk(l, m, 1 + kk * 0.9, Math.PI / 2, 0, "SCULK_SOUL", 28));
+                }
+                p(l, "SONIC_BOOM", m, 1, 0, 0, 0, 0);
+            }
+            case MIMIC -> {
+                for (int i = 0; i < 14; i++) {
+                    Vec3 a = randomInSphere(m, r * 0.8);
+                    Vec3 d = new Vec3(R.nextDouble() - 0.5, R.nextDouble() - 0.5, R.nextDouble() - 0.5).scale(4);
+                    line(l, "END_ROD", a, a.add(d), 6);
+                }
+                p(l, "ENCHANT", m, 40, r * 0.4, 1.0, r * 0.4, 0.4);
+            }
+            case GRAVITY -> {
+                disk(l, m, r * 0.8, 0.5, 0, "REVERSE_PORTAL", 40);
+                disk(l, m, r * 0.6, -0.5, 1, "PORTAL", 32);
+                disk(l, m, r * 0.4, 1.1, 2, "END_ROD", 24);
+            }
+            case RIFT -> {
+                disk(l, m, 2.0, Math.PI / 2, 0, "PORTAL", 40);
+                disk(l, m, 1.3, Math.PI / 2, 1, "REVERSE_PORTAL", 28);
+                p(l, "END_ROD", m, 30, 1.2, 1.6, 0.3, 0.05);
+            }
+            case ILLUSION -> {
+                for (int k = 0; k < 4; k++) {
+                    double a = k * Math.PI / 2 + 0.4;
+                    Vec3 v = g.add(Math.cos(a) * 3, 0, Math.sin(a) * 3);
+                    p(l, "ENCHANT", v.add(0, 1, 0), 10, 0.2, 0.8, 0.2, 0.02);
+                    p(l, "END_ROD", v.add(0, 1.8, 0), 2, 0.1, 0.1, 0.1, 0);
+                }
+                spiral(l, "ENCHANT", g, 1.2, 3, 3, 20, 0);
+            }
+            default -> { }
+        }
     }
 
     // ================= zones (every 2 ticks) =================

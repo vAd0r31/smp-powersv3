@@ -50,6 +50,7 @@ public class Config {
     public boolean tideSurgeRequiresTrident = true;
 
     // Display
+    public boolean ultimateTitleCard = true;    // big title with the player and ultimate name for everyone nearby
     public boolean actionBarHud = true;
     public boolean effects = true;              // particles, flying rocks, sounds for abilities
     public boolean hudIcons = true;             // needs the resource pack, turn off if you don't use it
