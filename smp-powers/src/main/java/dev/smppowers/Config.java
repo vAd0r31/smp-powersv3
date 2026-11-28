@@ -40,6 +40,12 @@ public class Config {
     public boolean allowInCreative = false;
     public List<String> disabledDimensions = new ArrayList<>();   // e.g. "minecraft:the_nether"
 
+    // Gojo and Sukuna
+    public boolean secretInfiniteLunge = true;     // keeps their hunger full so spear lunges never run out
+    public boolean secretInvisibleGear = true;     // other players cannot see their armor or what they hold
+    public boolean domainCutscene = true;          // title card, freeze and flash when a domain expansion opens
+    public int domainCutsceneTicks = 50;           // how long the cutscene lasts (20 ticks = 1 second)
+
     // Tide ultimate: right-click a trident to ride a riptide with no water
     public boolean tideSurgeRequiresTrident = true;
 

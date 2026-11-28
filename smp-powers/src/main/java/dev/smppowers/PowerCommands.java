@@ -26,6 +26,16 @@ final class PowerCommands {
             ServerPlayer p = ctx.getSource().getPlayerOrException();
             Abilities.cast(p);
             return 1;
+        }).then(Commands.argument("slot", IntegerArgumentType.integer(1, 4)).executes(ctx -> {
+            ServerPlayer p = ctx.getSource().getPlayerOrException();
+            Abilities.castSlot(p, IntegerArgumentType.getInteger(ctx, "slot"));
+            return 1;
+        })));
+
+        // Admin control panel (a chest menu, no client mod needed)
+        d.register(Commands.literal("powergui").requires(Compat.admin()).executes(ctx -> {
+            AdminGui.open(ctx.getSource().getPlayerOrException());
+            return 1;
         }));
 
         d.register(Commands.literal("ultimate").executes(ctx -> {
@@ -62,6 +72,11 @@ final class PowerCommands {
         }));
 
         // Admin only below
+        power.then(Commands.literal("gui").requires(Compat.admin()).executes(ctx -> {
+            AdminGui.open(ctx.getSource().getPlayerOrException());
+            return 1;
+        }));
+
         power.then(Commands.literal("set").requires(Compat.admin())
                 .then(Commands.argument("player", EntityArgument.player())
                         .then(Commands.argument("power", StringArgumentType.word()).suggests(POWER_NAMES)
@@ -126,6 +141,15 @@ final class PowerCommands {
         PlayerData data = PowerEngine.data(p);
         if (pw == null) {
             PowerEngine.tell(viewer, "No power yet.", ChatFormatting.GRAY);
+            return;
+        }
+        if (Jujutsu.is(pw)) {
+            String[] names = Jujutsu.slotNames(pw);
+            StringBuilder sb = new StringBuilder("Power: " + pw.display + "  Level " + data.level + "/" + PowerEngine.config.maxLevel);
+            for (int i = 0; i < names.length; i++) sb.append("\n/ability ").append(i + 1).append(": ").append(names[i]);
+            sb.append("\n/ultimate: ").append(pw.ultimateName).append(" (needs level ").append(PowerEngine.config.ultimateMinLevel)
+                    .append(" and 100% charge, now ").append(data.charge).append("%)");
+            Compat.msg(viewer, Component.literal(sb.toString()).withStyle(ChatFormatting.GOLD));
             return;
         }
         PowerSettings s = PowerEngine.config.settings(pw);

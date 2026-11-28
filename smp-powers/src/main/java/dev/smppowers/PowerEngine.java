@@ -90,6 +90,7 @@ final class PowerEngine {
         venomArmed.clear();
         reaperMarks.clear();
         riftLinks.clear();
+        Jujutsu.reset();
         siphon.clear();
         noFall.clear();
         slams.clear();
@@ -122,16 +123,20 @@ final class PowerEngine {
     static Power randomPower(Power exclude) {
         int total = 0;
         for (Power p : Power.values()) {
-            if (p == exclude) continue;
+            if (p == exclude || p.secret()) continue;
             total += Math.max(0, config.powerWeights.getOrDefault(p.id(), 1));
         }
         if (total <= 0) {
             Power[] all = Power.values();
-            return all[RANDOM.nextInt(all.length)];
+            Power pick;
+            do {
+                pick = all[RANDOM.nextInt(all.length)];
+            } while (pick.secret());
+            return pick;
         }
         int roll = RANDOM.nextInt(total);
         for (Power p : Power.values()) {
-            if (p == exclude) continue;
+            if (p == exclude || p.secret()) continue;
             roll -= Math.max(0, config.powerWeights.getOrDefault(p.id(), 1));
             if (roll < 0) return p;
         }
@@ -143,7 +148,9 @@ final class PowerEngine {
         d.power = power.id();
         d.charge = 0;
         d.abilityReadyAt = 0;
+        if (d.slotReadyAt != null) java.util.Arrays.fill(d.slotReadyAt, 0L);
         ultimates.remove(p.getUUID());
+        Jujutsu.clearAndRestore(p);
         store.save();
     }
 
@@ -193,6 +200,7 @@ final class PowerEngine {
         ultimates.remove(id);
         venomArmed.remove(id);
         riftLinks.remove(id);
+        Jujutsu.clear(id);
         siphon.remove(id);
         noFall.remove(id);
         slams.remove(id);
@@ -236,6 +244,7 @@ final class PowerEngine {
             if (config.actionBarHud && t % 10 == 0) hud(p, power, t);
         }
 
+        Jujutsu.tick(s, t);
         if (t % 10 == 0) zonePulse(t);
         Fx.tick(s, t);
         if (t == 100) Fx.cleanup();
@@ -287,6 +296,7 @@ final class PowerEngine {
             case DRAGON -> {
                 if (p.isShiftKeyDown()) Compat.effect(p, MobEffects.SLOW_FALLING, d, 0);
             }
+            case GOJO, SUKUNA -> Jujutsu.passives(p, power);
             default -> { }
         }
     }
@@ -348,6 +358,11 @@ final class PowerEngine {
         else if (d.charge >= 100) ult = "READY";
         else ult = d.charge + "%";
         String icon = config.hudIcons ? power.icon() + " " : "";
+        if (Jujutsu.is(power)) {
+            Compat.actionBar(p, Component.literal(icon + power.display + " Lv" + d.level + "  |  "
+                    + Jujutsu.hud(p, power, d, ult)).withStyle(ChatFormatting.WHITE));
+            return;
+        }
         Compat.actionBar(p, Component.literal(icon + power.display + " Lv" + d.level
                 + "  |  Ability: " + ability + "  |  Ultimate: " + ult).withStyle(ChatFormatting.WHITE));
     }
@@ -422,6 +437,7 @@ final class PowerEngine {
         if (power == null || !enabledFor(p)) return true;
 
         if (noFall.containsKey(p.getUUID()) && source.is(DamageTypeTags.IS_FALL)) return false;
+        if (Jujutsu.shields(p, source)) return false;
         switch (power) {
             case EMBER -> {
                 if (source.is(DamageTypeTags.IS_FIRE)) return false;
@@ -440,6 +456,9 @@ final class PowerEngine {
             }
             case SAND -> {
                 if (source.is(DamageTypes.IN_WALL)) return false;
+            }
+            case GOJO -> {
+                if (source.is(DamageTypeTags.IS_FALL)) return false;
             }
             default -> { }
         }
@@ -508,6 +527,7 @@ final class PowerEngine {
     static void afterDeath(LivingEntity dead, DamageSource source) {
         if (dead instanceof ServerPlayer victim) {
             ultimates.remove(victim.getUUID());
+            Jujutsu.clear(victim.getUUID());
             slams.remove(victim.getUUID());
             PlayerData vd = data(victim);
             vd.charge = Math.max(0, config.chargeAfterDeath);

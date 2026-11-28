@@ -2,7 +2,7 @@ package dev.smppowers;
 
 import java.util.Locale;
 
-/** The 19 powers. Numbers live in PowerSettings / config.json, this is only names and flags. */
+/** The 21 powers (19 normal + the secret Gojo and Sukuna). Numbers live in PowerSettings / config.json, this is only names and flags. */
 public enum Power {
     TIDE("Tide", 0x3FA7FF, true, "Dash", "Tidal Surge"),
     EMBER("Ember", 0xFF7A1A, false, "Fire Burst", "Fire Storm"),
@@ -22,7 +22,10 @@ public enum Power {
     MIMIC("Mimic", 0xD86AD8, false, "Copycat", "Mirror"),
     GRAVITY("Gravity", 0x7058D8, false, "Pull", "Singularity"),
     RIFT("Rift", 0x4D7CFF, false, "Blink", "Linked Rift"),
-    ILLUSION("Illusion", 0xB8A0FF, false, "Mirage", "Mass Illusion");
+    ILLUSION("Illusion", 0xB8A0FF, false, "Mirage", "Mass Illusion"),
+    // Secret powers: never rolled or rerolled, only given with /power set or the admin GUI.
+    GOJO("Gojo", 0x6FB7FF, false, "Lapse Blue", "Hollow Purple"),
+    SUKUNA("Sukuna", 0xD01030, false, "Dismantle", "Divine Flame");
 
     public final String display;
     public final int color;
@@ -42,6 +45,11 @@ public enum Power {
     /** Private-use character the resource pack draws as this power's icon. */
     public char icon() {
         return (char) (0xE000 + ordinal());
+    }
+
+    /** Secret powers have several abilities (/ability 1-4) and are never handed out randomly. */
+    public boolean secret() {
+        return this == GOJO || this == SUKUNA;
     }
 
     public String id() {

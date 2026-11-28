@@ -73,6 +73,25 @@ final class Abilities {
 
     // ---------- casting entry points ----------
 
+    /** /ability <slot>. Slot 1 is the normal ability; Gojo and Sukuna also have slots 2 to 4. */
+    static boolean castSlot(ServerPlayer p, int slot) {
+        if (slot <= 1) return cast(p);
+        Power power = PowerEngine.powerOf(p);
+        if (power == null) {
+            PowerEngine.tell(p, "You have no power yet.", ChatFormatting.RED);
+            return false;
+        }
+        if (!PowerEngine.enabledFor(p)) {
+            PowerEngine.tell(p, "Powers are off for you right now.", ChatFormatting.RED);
+            return false;
+        }
+        if (!Jujutsu.is(power)) {
+            PowerEngine.tell(p, "Your power has one ability. Use /ability.", ChatFormatting.GRAY);
+            return false;
+        }
+        return Jujutsu.castSlot(p, power, slot);
+    }
+
     /** Returns true if the ability was used. */
     static boolean cast(ServerPlayer p) {
         Power power = PowerEngine.powerOf(p);
@@ -224,6 +243,9 @@ final class Abilities {
                 Compat.effect(p, MobEffects.INVISIBILITY, ticks, 0);
                 Compat.effect(p, MobEffects.SPEED, ticks, 1);
             }
+            case GOJO, SUKUNA -> {
+                if (!Jujutsu.slot1(p, eff, s, lvl)) return false;
+            }
             default -> { }
         }
 
@@ -340,6 +362,7 @@ final class Abilities {
                 }
                 Compat.effect(p, MobEffects.SPEED, duration, 0);
             }
+            case GOJO, SUKUNA -> Jujutsu.startUltimate(p, eff, s, lvl);
             default -> { }
         }
 
@@ -443,7 +466,7 @@ final class Abilities {
 
     /** Mimic can't copy abilities that only work through the caster's own hits. */
     private static boolean copyable(Power x) {
-        return x != Power.MIMIC && x != Power.VENOM && x != Power.VITAL && x != Power.REAPER;
+        return !x.secret() && x != Power.MIMIC && x != Power.VENOM && x != Power.VITAL && x != Power.REAPER;
     }
 
     static Power mimicSource(ServerPlayer p) {

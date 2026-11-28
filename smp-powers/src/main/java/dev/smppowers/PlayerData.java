@@ -6,4 +6,5 @@ public class PlayerData {
     public int level = 1;           // 1 to maxLevel
     public int charge = 0;          // 0 to 100
     public long abilityReadyAt = 0; // epoch milliseconds, so cooldowns keep counting while offline
+    public long[] slotReadyAt = new long[5]; // cooldowns for /ability 2, 3 and 4 (index = slot number)
 }

@@ -14,6 +14,14 @@ public class PowerSettings {
     public double ultimateRadius = 0;
     public double ultimateDamage = 0;     // damage per pulse for storm-type ultimates
     public double ultimateStrength = 0;   // launch / boost speed
+    public double ultimateWindup = 0;     // seconds of charging before the ultimate fires (Gojo / Sukuna)
+    public double abilityExtra = 0;       // spare number for slot 1 (Gojo / Sukuna)
+
+    // Extra ability slots, only used by Gojo and Sukuna (/ability 2, 3, 4).
+    // Each slot: cooldown s, duration s, radius/range blocks, damage, strength, extra number.
+    public double slot2Cooldown = 0, slot2Duration = 0, slot2Radius = 0, slot2Damage = 0, slot2Strength = 0, slot2Extra = 0;
+    public double slot3Cooldown = 0, slot3Duration = 0, slot3Radius = 0, slot3Damage = 0, slot3Strength = 0, slot3Extra = 0;
+    public double slot4Cooldown = 0, slot4Duration = 0, slot4Radius = 0, slot4Damage = 0, slot4Strength = 0, slot4Extra = 0;
 
     public static PowerSettings defaultsFor(Power p) {
         return switch (p) {
@@ -56,6 +64,31 @@ public class PowerSettings {
             case RIFT -> of(15, 0, 8, 0, 0, 12, 30, 0, 0);
             // Mirage: 4s invisible + Speed II, decoys left behind. Ultimate: 8s, everyone within 15 gets nausea.
             case ILLUSION -> of(25, 4, 0, 0, 0, 8, 15, 0, 0);
+            // GOJO. Slot 1 Lapse Blue: orb lives 3s, pulls everything within 12, 3 damage per pulse (every 0.25s), pull 1.1.
+            //   Ultimate Hollow Purple: 2.5s charge, beam range 90, beam radius 3, 70 damage.
+            //   Slot 2 Reversal Red: range 35, 18 damage, knockback 2.4, blast radius 6 (extra).
+            //   Slot 3 Infinity: toggle, max 10s, barrier radius 4, push strength 0.7.
+            //   Slot 4 Domain (Unlimited Void): 12s, radius 15, 2 damage per 0.5s, everything inside is crippled.
+            case GOJO -> {
+                PowerSettings g = of(8, 3, 12, 3, 1.1, 5, 90, 70, 3);
+                g.ultimateWindup = 2.5;
+                g.slot2Cooldown = 12; g.slot2Radius = 35; g.slot2Damage = 18; g.slot2Strength = 2.4; g.slot2Extra = 6;
+                g.slot3Cooldown = 10; g.slot3Duration = 10; g.slot3Radius = 4; g.slot3Strength = 0.7;
+                g.slot4Cooldown = 90; g.slot4Duration = 12; g.slot4Radius = 15; g.slot4Damage = 2;
+                yield g;
+            }
+            // SUKUNA. Slot 1 Dismantle: 3 slashes, range 14, 5 damage each, knockback 0.4.
+            //   Slot 2 Cleave: range 22, at least 10 damage or 40% of the target's max health (strength), capped at 45 (extra).
+            //   Slot 3 Domain (Malevolent Shrine): 12s, radius 16, 3 damage per 0.5s, bleeding.
+            //   Ultimate Divine Flame: 2s charge, range 80, blast radius 14, 60 damage, burns 15s (ability extra).
+            case SUKUNA -> {
+                PowerSettings k = of(6, 0, 14, 5, 0.4, 5, 14, 60, 80);
+                k.ultimateWindup = 2.0;
+                k.abilityExtra = 15; // seconds the Divine Flame burns people
+                k.slot2Cooldown = 14; k.slot2Radius = 22; k.slot2Damage = 10; k.slot2Strength = 0.4; k.slot2Extra = 45;
+                k.slot3Cooldown = 90; k.slot3Duration = 12; k.slot3Radius = 16; k.slot3Damage = 3;
+                yield k;
+            }
         };
     }
 
