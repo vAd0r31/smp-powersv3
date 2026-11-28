@@ -477,6 +477,7 @@ final class Fx {
             }
             default -> { }
         }
+        if (!power.secret()) flourish(p, power, false, s.abilityRadius);
     }
 
     // ---- Illusion: stick-figure decoys made of particles ----
@@ -790,6 +791,7 @@ final class Fx {
         debris(l, pos, blk, 14, 5, 5, 0.45, true);
         p(l, "TOTEM_OF_UNDYING", pos.add(0, 1, 0), 40, 0.6, 1.0, 0.6, 0.4);
         if (power == Power.HUNTER) radar(p, s.ultimateRadius);
+        flourish(p, power, true, s.ultimateRadius);
     }
 
     /** Hunter's Eye: a huge ring sweeps outward and everything it passes lights up. */
@@ -1492,6 +1494,73 @@ final class Fx {
         }
         piece(l, b, "minecraft:red_stained_glass", -1.8, 1.0, -5.0, 0.5, 0.7, 0.5, life, true);
         piece(l, b, "minecraft:red_stained_glass", 1.8, 1.0, -5.0, 0.5, 0.7, 0.5, life, true);
+    }
+
+    // ================= extra flair on every ability and ultimate =================
+
+    /**
+     * A themed layer drawn on top of every ability and ultimate: a spinning rune sigil that grows out from
+     * the caster, a rising double helix, a pillar of light, a burst ring and flying debris. Ultimates get a
+     * bigger version with expanding spheres and a ground shockwave.
+     */
+    static void flourish(ServerPlayer p, Power power, boolean ult, double radius) {
+        if (!on()) return;
+        ServerLevel l = Compat.level(p);
+        Vec3 pos = p.position();
+        final Vec3 g = new Vec3(pos.x, groundY(l, pos) + 0.1, pos.z);
+        final String blk = blockFor(power), part = particleFor(power);
+        final double r = Math.max(2.8, Math.min(ult ? 12 : 6, radius));
+        final int frames = ult ? 16 : 9;
+        final double top = ult ? 5.0 : 3.2;
+        for (int k = 0; k < frames; k++) {
+            final int kk = k;
+            final double prog = (k + 1) / (double) frames;
+            later(k, () -> {
+                double rr = r * prog;
+                disk(l, g, rr, 0, kk * 0.45, part, (int) (14 + rr * 5));
+                disk(l, g, rr * 0.62, 0, -kk * 0.6, "ENCHANT", (int) (10 + rr * 3));
+                for (int s = 0; s < 6; s++) {
+                    double a = kk * 0.3 + s * Math.PI / 3;
+                    p(l, "END_ROD", g.x + Math.cos(a) * rr, g.y + 0.05, g.z + Math.sin(a) * rr, 1, 0, 0, 0, 0);
+                }
+                double h = prog * top;
+                for (int st = 0; st < 2; st++) {
+                    double a = kk * 0.7 + st * Math.PI;
+                    double hx = g.x + Math.cos(a) * r * 0.35, hz = g.z + Math.sin(a) * r * 0.35;
+                    p(l, part, hx, g.y + h, hz, 1, 0, 0, 0, 0);
+                    p(l, "END_ROD", hx, g.y + h, hz, 1, 0, 0, 0, 0);
+                }
+            });
+        }
+        later(frames, () -> {
+            expandingRing(l, "END_ROD", g.add(0, 0.2, 0), r * 1.2, 5, 48);
+            p(l, part, g.add(0, 1, 0), 40, r * 0.2, 0.6, r * 0.2, 0.15);
+            p(l, "FIREWORK", g.add(0, 1.2, 0), 12, 0.4, 0.5, 0.4, 0.15);
+        });
+        pillar(l, g, blk, ult ? 0.9 : 0.5, ult ? 16 : 7, 3, ult ? 12 : 5, true);
+        sound(l, pos, "minecraft:entity.firework_rocket.twinkle", 1.2f, 0.8f);
+        if (ult) {
+            sound(l, pos, "minecraft:block.beacon.power_select", 1.6f, 0.7f);
+            for (int k = 1; k <= 6; k++) {
+                final double rr = r * k / 6.0;
+                later(k, () -> sphereShell(l, part, g.add(0, 1, 0), rr, 60));
+            }
+            debris(l, g, blk, 16, r, 6, 0.5, true);
+            ripple(l, g, Math.min(r, 9), blk);
+        } else {
+            debris(l, g, blk, 6, r, 2.5, 0.3, true);
+        }
+    }
+
+    /** A faint glow around Gojo and Sukuna, since their armor is invisible. Called every 10 ticks. */
+    static void idleAura(ServerPlayer p, Power power, int t) {
+        if (!on()) return;
+        ServerLevel l = Compat.level(p);
+        Vec3 pos = p.position();
+        boolean g = power == Power.GOJO;
+        spiral(l, g ? "SOUL_FIRE_FLAME" : "SMALL_FLAME", pos, 0.7, 2.0, 1.5, 4, t * 0.3);
+        p(l, g ? "END_ROD" : "CRIMSON_SPORE", pos.add(0, 1, 0), 2, 0.4, 0.7, 0.4, 0.01);
+        p(l, g ? "ELECTRIC_SPARK" : "FLAME", pos.add(0, 1.8, 0), 1, 0.2, 0.1, 0.2, 0.02);
     }
 
     // ================= zones (every 2 ticks) =================

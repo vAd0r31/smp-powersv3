@@ -710,6 +710,7 @@ final class Jujutsu {
             if (pw == null || !is(pw) || !PowerEngine.enabledFor(p)) continue;
             if (PowerEngine.config.secretInfiniteLunge && t % 5 == 0) fillHunger(p);
             if (PowerEngine.config.secretInvisibleGear && t % 2 == 0) hideGear(srv, p);
+            if (t % 10 == 0) Fx.idleAura(p, pw, t);
         }
         if (!infinityEnd.isEmpty()) infinityTick(srv, t);
         if (!orbs.isEmpty()) orbTick(srv, t);
