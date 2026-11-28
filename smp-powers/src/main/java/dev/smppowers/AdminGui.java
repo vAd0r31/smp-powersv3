@@ -18,7 +18,6 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
@@ -28,7 +27,8 @@ import net.minecraft.world.item.component.ItemLore;
 
 /**
  * Admin control panel: a normal chest menu that is built on the server, so nobody needs any mod.
- * Open it with /power gui (or /powergui). Left click = +, right click = -, shift = 10 times more.
+ * Open it with /power gui (or /powergui). Every click presses a button; the two buttons in the bottom right
+ * switch between + and - and between step x1 and x10.
  * Everything saves to config.json / players.json as you click.
  */
 final class AdminGui {
@@ -63,8 +63,11 @@ final class AdminGui {
         final Act[] acts = new Act[54];
         final ServerPlayer viewer;
         final Page page;
-        boolean viaClicked = false;
         boolean navigated = false;
+        boolean subtract = false;   // click mode: false = add, true = subtract
+        boolean big = false;        // click step: false = x1, true = x10
+        int lastTick = -1;
+        int lastSlot = -1;
 
         Menu(int id, Inventory inv, Page page) {
             super(MenuType.GENERIC_9x6, id);
@@ -76,6 +79,22 @@ final class AdminGui {
             }
             for (int c = 0; c < 9; c++) addSlot(new Locked(this, inv, c, 8 + c * 18, 198, -1));
             page.render(this);
+            controls();
+        }
+
+        /** Two buttons on every page that switch what a click does (so no right-click or shift is needed). */
+        void controls() {
+            box.setItem(52, icon(subtract ? Items.REDSTONE : Items.EMERALD, subtract ? ChatFormatting.RED : ChatFormatting.GREEN,
+                    "Click mode: " + (subtract ? "SUBTRACT (-)" : "ADD (+)"), "Click here to switch."));
+            acts[52] = (v, b, sh) -> {
+                subtract = !subtract;
+                refresh();
+            };
+            box.setItem(53, icon(Items.CLOCK, ChatFormatting.YELLOW, "Step: " + (big ? "x10 (big)" : "x1 (normal)"), "Click here to switch."));
+            acts[53] = (v, b, sh) -> {
+                big = !big;
+                refresh();
+            };
         }
 
         void put(int slot, ItemStack s, Act a) {
@@ -91,6 +110,7 @@ final class AdminGui {
                 acts[i] = null;
             }
             page.render(this);
+            controls();
             resync();
         }
 
@@ -101,11 +121,15 @@ final class AdminGui {
             if (PowerEngine.server != null) PowerEngine.server.execute(() -> open(v, next));
         }
 
-        void press(int slot, int button, boolean shift) {
+        void press(int slot) {
             Act a = acts[slot];
             if (a == null) return;
+            int now = PowerEngine.now();
+            if (now == lastTick && slot == lastSlot) return; // one click can be checked twice
+            lastTick = now;
+            lastSlot = slot;
             try {
-                a.run(viewer, button, shift);
+                a.run(viewer, subtract ? 1 : 0, big);
             } catch (Exception e) {
                 PowersMod.LOGGER.warn("admin gui click failed", e);
                 PowerEngine.tell(viewer, "That click failed, see the server log.", ChatFormatting.RED);
@@ -125,15 +149,6 @@ final class AdminGui {
             broadcastChanges();
         }
 
-        // No @Override on purpose: if a future version renames this, the slots below still can't be picked up.
-        public void clicked(int slotId, int button, ClickType type, Player player) {
-            viaClicked = true;
-            if (slotId >= 0 && slotId < 54 && (type == ClickType.PICKUP || type == ClickType.QUICK_MOVE)) {
-                press(slotId, button, type == ClickType.QUICK_MOVE);
-            }
-            if (!navigated) resync();
-        }
-
         @Override
         public ItemStack quickMoveStack(Player player, int index) {
             return ItemStack.EMPTY;
@@ -145,7 +160,7 @@ final class AdminGui {
         }
     }
 
-    /** A slot nobody can take from or put into. If the click hook above is missing it still works as a left-click button. */
+    /** A slot nobody can take from or put into. Trying to pick it up counts as pressing the button. */
     static final class Locked extends Slot {
         private final Menu menu;
         private final int idx;
@@ -163,7 +178,7 @@ final class AdminGui {
 
         @Override
         public boolean mayPickup(Player p) {
-            if (!menu.viaClicked && idx >= 0) menu.press(idx, 0, false);
+            if (idx >= 0) menu.press(idx);
             return false;
         }
     }
@@ -186,7 +201,7 @@ final class AdminGui {
             case GALE -> Items.FEATHER;
             case STONE -> Items.STONE;
             case FROST -> Items.SNOWBALL;
-            case STORM -> Items.LIGHTNING_ROD;
+            case STORM -> Items.COPPER_INGOT;
             case SHADE -> Items.INK_SAC;
             case VITAL -> Items.GOLDEN_APPLE;
             case VENOM -> Items.SPIDER_EYE;
@@ -200,8 +215,8 @@ final class AdminGui {
             case GRAVITY -> Items.OBSIDIAN;
             case RIFT -> Items.ENDER_PEARL;
             case ILLUSION -> Items.PHANTOM_MEMBRANE;
-            case GOJO -> Items.LIGHT_BLUE_DYE;
-            case SUKUNA -> Items.RED_DYE;
+            case GOJO -> Items.DIAMOND;
+            case SUKUNA -> Items.NETHERITE_SWORD;
         };
     }
 
@@ -267,7 +282,7 @@ final class AdminGui {
                         PowerEngine.tell(v, "Reloaded.", ChatFormatting.GREEN);
                     });
             m.put(34, icon(Items.BOOK, ChatFormatting.WHITE, "How to use",
-                    "Left click: +  |  Right click: -", "Shift: 10 times bigger steps.", "Changes save as you click."), null);
+                    "Bottom right: switch + / - and the step size.", "Changes save as you click."), null);
         });
     }
 
@@ -307,7 +322,7 @@ final class AdminGui {
                     "Click to pick a different power."), (v, b, sh) -> m.go(pickPower(id)));
 
             ItemStack lvl = icon(Items.EXPERIENCE_BOTTLE, ChatFormatting.GREEN, "Level: " + d.level,
-                    "Left +1, right -1 (1 to " + PowerEngine.config.maxLevel + ")");
+                    "Uses the click mode (bottom right)", "Range 1 to " + PowerEngine.config.maxLevel);
             lvl.setCount(Math.max(1, Math.min(64, d.level)));
             m.put(12, lvl, (v, b, sh) -> {
                 ServerPlayer tt = find(id);
@@ -318,7 +333,7 @@ final class AdminGui {
                 m.refresh();
             });
             m.put(14, icon(Items.REDSTONE, ChatFormatting.RED, "Ultimate charge: " + d.charge + "%",
-                    "Left +1, right -1", "Shift: 10 at a time"), (v, b, sh) -> {
+                    "Uses the click mode and step", "(bottom right buttons)"), (v, b, sh) -> {
                 ServerPlayer tt = find(id);
                 if (tt == null) return;
                 PlayerData dd = PowerEngine.data(tt);
@@ -461,7 +476,7 @@ final class AdminGui {
                     List<String> lore = new ArrayList<>();
                     lore.add("Value: " + num(val) + "   (default " + num(dv) + ")");
                     lore.add(describe(pw, n));
-                    lore.add("Left +" + num(stepFor(n, val)) + "  Right -" + num(stepFor(n, val)) + "  Shift x10");
+                    lore.add("Step " + num(stepFor(n, val)) + " (x10 with the Step button)");
                     m.put(i, icon(itemForField(n), ChatFormatting.YELLOW, label(n) + ": " + num(val), lore.toArray(new String[0])),
                             (v, b, sh) -> {
                                 try {
@@ -482,7 +497,7 @@ final class AdminGui {
             int w = PowerEngine.config.powerWeights.getOrDefault(pw.id(), 1);
             m.put(47, icon(Items.EMERALD, ChatFormatting.GREEN, "Roll weight: " + w,
                     pw.secret() ? "Secret powers are never rolled." : "Higher = rolled more often. 0 = never.",
-                    "Left +1, right -1"), (v, b, sh) -> {
+                    "Uses the click mode (bottom right)"), (v, b, sh) -> {
                         int cur = PowerEngine.config.powerWeights.getOrDefault(pw.id(), 1);
                         PowerEngine.config.powerWeights.put(pw.id(), Math.max(0, cur + (b == 1 ? -1 : 1)));
                         PowerEngine.config.save();
@@ -527,7 +542,7 @@ final class AdminGui {
                     String n = f.getName();
                     if (type == boolean.class) {
                         boolean on = f.getBoolean(c);
-                        m.put(i++, icon(on ? Items.LIME_DYE : Items.GRAY_DYE, on ? ChatFormatting.GREEN : ChatFormatting.RED,
+                        m.put(i++, icon(on ? Items.EMERALD : Items.REDSTONE, on ? ChatFormatting.GREEN : ChatFormatting.RED,
                                 label(n) + ": " + (on ? "ON" : "OFF"), "Click to switch."), (v, b, sh) -> {
                                     try {
                                         f.setBoolean(c, !f.getBoolean(c));
@@ -541,7 +556,7 @@ final class AdminGui {
                         double cur = type == int.class ? f.getInt(c) : f.getDouble(c);
                         double step = type == int.class ? 1 : (Math.abs(cur) < 1.5 ? 0.01 : 0.5);
                         m.put(i++, icon(Items.COMPARATOR, ChatFormatting.YELLOW, label(n) + ": " + num(cur),
-                                "Left +" + num(step) + "  Right -" + num(step) + "  Shift x10"), (v, b, sh) -> {
+                                "Step " + num(step) + " (x10 with the Step button)"), (v, b, sh) -> {
                                     try {
                                         double now = type == int.class ? f.getInt(c) : f.getDouble(c);
                                         double nv = Math.max(0, now + step * (sh ? 10 : 1) * (b == 1 ? -1 : 1));
@@ -569,12 +584,12 @@ final class AdminGui {
             m.put(12, icon(Items.NAUTILUS_SHELL, ChatFormatting.AQUA, "Reroll Token", "Click: 1   Shift: 16"), (v, b, sh) -> {
                 for (int i = 0; i < (sh ? 16 : 1); i++) PowerEngine.giveOrDrop(v, EssenceItems.rerollToken());
             });
-            m.put(14, icon(Items.LIGHT_BLUE_DYE, ChatFormatting.LIGHT_PURPLE, "Become Gojo",
+            m.put(14, icon(Items.DIAMOND, ChatFormatting.LIGHT_PURPLE, "Become Gojo",
                     "Secret power for you."), (v, b, sh) -> {
                         PowerEngine.assignPower(v, Power.GOJO);
                         PowerEngine.tell(v, "You are Gojo. /ability 1-4 and /ultimate.", ChatFormatting.AQUA);
                     });
-            m.put(16, icon(Items.RED_DYE, ChatFormatting.RED, "Become Sukuna",
+            m.put(16, icon(Items.NETHERITE_SWORD, ChatFormatting.RED, "Become Sukuna",
                     "Secret power for you."), (v, b, sh) -> {
                         PowerEngine.assignPower(v, Power.SUKUNA);
                         PowerEngine.tell(v, "You are Sukuna. /ability 1-3 and /ultimate.", ChatFormatting.RED);
