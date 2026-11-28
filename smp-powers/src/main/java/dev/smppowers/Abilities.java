@@ -73,6 +73,20 @@ final class Abilities {
 
     // ---------- casting entry points ----------
 
+    /** /domain: the domain expansion, same command for Gojo and Sukuna. */
+    static boolean castDomain(ServerPlayer p) {
+        Power power = PowerEngine.powerOf(p);
+        if (power == null || !Jujutsu.is(power)) {
+            PowerEngine.tell(p, "Only Gojo and Sukuna have a domain expansion.", ChatFormatting.GRAY);
+            return false;
+        }
+        if (!PowerEngine.enabledFor(p)) {
+            PowerEngine.tell(p, "Powers are off for you right now.", ChatFormatting.RED);
+            return false;
+        }
+        return Jujutsu.castSlot(p, power, 4);
+    }
+
     /** /ability <slot>. Slot 1 is the normal ability; Gojo and Sukuna also have slots 2 to 4. */
     static boolean castSlot(ServerPlayer p, int slot) {
         if (slot <= 1) return cast(p);
