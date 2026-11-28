@@ -165,6 +165,7 @@ final class Jujutsu {
 
     /** /ability 2, 3 or 4. */
     static boolean castSlot(ServerPlayer p, Power pw, int slot) {
+        if (pw == Power.SUKUNA && slot == 4) slot = 3; // slot 4 is the domain for both, so /ability 4 and /domain work for Sukuna too
         String[] names = slotNames(pw);
         if (slot < 1 || slot > names.length) {
             PowerEngine.tell(p, pw.display + " has " + names.length + " abilities: use /ability 1 to " + names.length

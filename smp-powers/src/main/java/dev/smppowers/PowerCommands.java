@@ -32,6 +32,11 @@ final class PowerCommands {
             return 1;
         })));
 
+        d.register(Commands.literal("domain").executes(ctx -> {
+            Abilities.castDomain(ctx.getSource().getPlayerOrException());
+            return 1;
+        }));
+
         // Admin control panel (a chest menu, no client mod needed)
         d.register(Commands.literal("powergui").requires(Compat.admin()).executes(ctx -> {
             AdminGui.open(ctx.getSource().getPlayerOrException());
@@ -146,7 +151,7 @@ final class PowerCommands {
         if (Jujutsu.is(pw)) {
             String[] names = Jujutsu.slotNames(pw);
             StringBuilder sb = new StringBuilder("Power: " + pw.display + "  Level " + data.level + "/" + PowerEngine.config.maxLevel);
-            for (int i = 0; i < names.length; i++) sb.append("\n/ability ").append(i + 1).append(": ").append(names[i]);
+            for (int i = 0; i < names.length; i++) sb.append(names[i].startsWith("Domain") ? "\n/domain (or /ability 4): " : "\n/ability " + (i + 1) + ": ").append(names[i]);
             sb.append("\n/ultimate: ").append(pw.ultimateName).append(" (needs level ").append(PowerEngine.config.ultimateMinLevel)
                     .append(" and 100% charge, now ").append(data.charge).append("%)");
             Compat.msg(viewer, Component.literal(sb.toString()).withStyle(ChatFormatting.GOLD));
